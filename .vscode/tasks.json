@@ -1,0 +1,20 @@
+{
+    "version": "0.1.0",
+    "command": "go",
+    "isShellCommand": true,
+    "showOutput": "always",
+    "tasks": [
+        {
+            "taskName": "Go Run",
+            "suppressTaskName": true,
+            "isBuildCommand": true,
+            "args": ["build","${file}"]
+        },
+        {
+            "taskName": "Go Test",
+            "suppressTaskName": true,
+            "isTestCommand": true,
+            "args": ["test -v"]
+        }
+    ]
+}
