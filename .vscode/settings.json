@@ -1,5 +1,8 @@
 // Place your settings in this file to overwrite default and user settings.
 {
+   	// Controls the font size.
+	"editor.fontSize": 12,
+
     "go.buildOnSave": true,
     "go.lintOnSave": true,
     "go.vetOnSave": true,
