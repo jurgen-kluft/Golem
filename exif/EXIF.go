@@ -2,411 +2,10 @@ package ImgMeta
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
-	"os"
 )
 
-// ============================================== JPEG ==============================================
-type exifError struct {
-	descr string
-}
-
-func (e *exifError) Error() string {
-	return fmt.Sprintf("%s", e.descr)
-}
-
-type JpegReader struct {
-	cursor uint64
-	data   []byte
-}
-
-func (b *JpegReader) Read(p []byte) (n int, err error) {
-	for i := 0; i < len(p); i++ {
-		p[i] = b.data[b.cursor]
-		b.cursor++
-	}
-	return len(p), nil
-}
-
-func (b *JpegReader) ReadByte() byte {
-	v := b.data[b.cursor]
-	b.cursor++
-	return v
-}
-
-func newJpegReader(fhnd *os.File) (reader *JpegReader, n int, err error) {
-	stat, err := fhnd.Stat()
-	reader = &JpegReader{cursor: 0, data: nil}
-	if err != nil {
-		return reader, 0, err
-	}
-	size := stat.Size()
-	reader.cursor = 0
-	reader.data = make([]byte, size)
-	n, err = fhnd.Read(reader.data)
-	return
-}
-
-func (b *JpegReader) pos() uint64 {
-	return b.cursor
-}
-
-// ReadJpeg will read all sections from the image data
-func ReadJpeg(fhnd *os.File) (image Image, err error) {
-	image = Image{apps: map[string]APP{}}
-	reader, n, err := newJpegReader(fhnd)
-	if n == 0 || err != nil {
-		return
-	}
-
-	marker := uint16(0)
-	binary.Read(reader, binary.BigEndian, &marker)
-	if marker != cSOI {
-		return image, &exifError{"Wrong format"}
-	}
-
-	//fmt.Println("Reading JPEG APP segments")
-
-	appHeader := make([]byte, 2)
-	for true {
-		n, err = reader.Read(appHeader)
-		if n != len(appHeader) || err != nil {
-			break
-		}
-		if appHeader[0] == 0xFF {
-			for appHeader[1] == 0xFF {
-				appHeader[1] = reader.ReadByte()
-			}
-
-			marker = ReadU16(appHeader, binary.BigEndian)
-			segment, ok := aSegments[marker]
-			if !ok {
-				return image, &exifError{"Unidentified APP marker encountered"}
-			}
-			//fmt.Printf("Encountered marker %s\n", segment.name)
-
-			if segment.action == eEnd {
-				//fmt.Printf("Encountered 'end' marked segment %s\n", segment.name)
-				break
-			}
-			if segment.action == eBegin {
-				continue
-			}
-
-			app, err := segment.reader(marker, reader)
-			if err != nil {
-				return image, err
-			}
-			//fmt.Printf("Registering APP %s\n", app.Name())
-			image.apps[app.Name()] = app
-
-		} else {
-			// Not a section marker
-			marker = ReadU16(appHeader, binary.BigEndian)
-			return image, &exifError{fmt.Sprintf("Encountered invalid section marker 0x%X", marker)}
-		}
-	}
-	return image, nil
-}
-
-// ============================================== EXIF ==============================================
-
-// Image holds both 'Image Data' and 'AP'
-type Image struct {
-	apps map[string]APP
-}
-
-// ReadTagValue reads the value of a tag given as an ID
-// Examples:
-//             imageWidth := image.ReadTagValue("EXIF", TagImageWidth)
-//             imageHeight := image.ReadTagValue("EXIF", TagImageHeight)
-
-func (i Image) ReadTagValue(appname string, tagID uint16) (value interface{}, err error) {
-	app, exists := i.apps[appname]
-	if !exists {
-		fmt.Printf("Image does not have '%s' meta section\n", appname)
-		return nil, nil
-	}
-	value, err = app.ReadValue(tagID)
-	return
-}
-
-var idJFIF = []byte{'J', 'F', 'I', 'F'}
-var idJFXX = []byte{'J', 'F', 'X', 'X'}
-var idEXIF = []byte{'E', 'x', 'i', 'f'}
-var idXMP = []byte{'h', 't', 't', 'p'}
-var idAPP2 = []byte{'I', 'C', 'C', '_'}
-
-type tAPPReader func(uint16, *JpegReader) (APP, error)
-
-type tAPPSegment struct {
-	name   string
-	marker uint16
-	action eAction
-	reader tAPPReader
-}
-
-func readAPPBlock(marker uint16, reader *JpegReader, extra uint32) (appblock []byte, err error) {
-	appLength := uint16(0)
-	binary.Read(reader, binary.BigEndian, &appLength)
-
-	size := uint32(appLength) + 2 + extra
-	appblock = make([]byte, size)
-
-	// Read the full APP data block into memory
-	n, err := reader.Read(appblock[4:])
-	if err != nil || n != (len(appblock)-4) {
-		return
-	}
-
-	WriteU16(marker, appblock, binary.BigEndian)
-	WriteU16(appLength, appblock[2:], binary.BigEndian)
-	return
-}
-
-func readComment(marker uint16, reader *JpegReader) (a APP, err error) {
-	//fmt.Print("APP:COMMENT = ")
-	var app tAPP
-	app.name = "COMMENT"
-	app.block, err = readAPPBlock(marker, reader, 0)
-	app.offset = 10
-	comment := string(app.block[4:])
-	fmt.Println(comment)
-	return app, nil
-}
-
-func readJFIF(app tAPP) (err error) {
-	//fmt.Printf("APP:JFIF (length: %d)\n", len(app.block))
-	app.name = "JFIF"
-	return nil
-}
-
-func readJFXX(app tAPP) (err error) {
-	//fmt.Printf("APP:JFXX (length: %d)\n", len(app.block))
-	app.name = "JFXX"
-	return nil
-}
-
-func readJF(marker uint16, reader *JpegReader) (a APP, err error) {
-	var app tAPP
-	app.block, err = readAPPBlock(marker, reader, 0)
-	app.offset = 10
-	if app.hasIdentifier(idJFIF) {
-		return app, readJFIF(app)
-	} else if app.hasIdentifier(idJFXX) {
-		return app, readJFIF(app)
-	}
-	return app, &exifError{"APP0 has wrong identifier, should be 'JFIF' or 'JFXX'"}
-}
-
-func readTIFF(tiff []byte) (endian binary.ByteOrder, offset uint64, err error) {
-	bo := ReadU16(tiff, binary.BigEndian)
-	if bo == cINTEL {
-		endian = binary.LittleEndian
-	} else if bo == cMOTOROLA {
-		endian = binary.BigEndian
-	} else {
-		err = &exifError{"TIFF-header Byte-Order is not matching 'II' or 'MM'"}
-		return
-	}
-	tiffID := ReadU16(tiff[2:], binary.BigEndian)
-	if tiffID != 0x002A {
-		err = &exifError{fmt.Sprintf("TIFF-header ID is not matching, 0x002A!=0x%X", tiffID)}
-		return
-	}
-	offset = uint64(ReadU32(tiff[4:], binary.BigEndian))
-	return
-}
-
-func (app tEXIFAPP) read() (err error) {
-	//fmt.Printf("APP:EXIF (length: %d)\n", len(app.block))
-	return nil
-}
-
-func readXMP(app tAPP) (err error) {
-	//fmt.Printf("APP:XMP (length: %d)\n", len(app.block))
-	return nil
-}
-
-// EXIF or XMP
-func readAPP1(marker uint16, reader *JpegReader) (a APP, err error) {
-	var app tAPP
-	app.offset = reader.pos()
-	app.block, err = readAPPBlock(marker, reader, 0)
-	if app.hasIdentifier(idEXIF) {
-		exif := tEXIFAPP{name: "EXIF"}
-		exif.block = app.block
-		exif.offset = app.offset
-		err = exif.read()
-		return exif, err
-	} else if app.hasIdentifier(idXMP) {
-		app.name = "XMP"
-		return app, readXMP(app)
-	}
-	return app, &exifError{"APP1 has wrong identifier, should be 'EXIF' or 'XMP'"}
-}
-
-func readICCPROFILE(app tAPP) (err error) {
-	//fmt.Printf("APP:ICC_PROFILE (length: %d)\n", len(app.block))
-	return nil
-}
-
-func readAPP2(marker uint16, reader *JpegReader) (a APP, err error) {
-	var app tAPP
-	app.block, err = readAPPBlock(marker, reader, 0)
-	app.offset = 10
-	if app.hasIdentifier(idAPP2) {
-		return app, readICCPROFILE(app)
-	}
-	return app, &exifError{"APP2 has wrong identifier, should be 'ICC_PROFILE'"}
-}
-
-func readIgnore(marker uint16, reader *JpegReader) (a APP, err error) {
-	var app tAPP
-	app.block, err = readAPPBlock(marker, reader, 0)
-	app.offset = 10
-
-	app.name = fmt.Sprintf("0x%X", marker)
-
-	// ignore
-	//fmt.Printf("APP:[ignore] (length: %d)\n", len(app.block))
-
-	return app, nil
-}
-
-// Image Sections
-const (
-	cSOI = 0xFFD8
-	cEOI = 0xFFD9
-
-	cJFIF = 0xFFE0 // APP0, "JFIF\x00" or "JFXX\x00", JFIF
-	cEXIF = 0xFFE1 // APP1, "EXIF\x00\x00" or "EXIF\x00\xFF" or "http://ns.adobe.com/xap/1.0/\x00"
-	cICC  = 0xFFE2 // APP2, "ICC_PROFILE\x00"
-	cMETA = 0xFFE3 // APP3, "META\x00\x00" or "Meta\x00\x00"
-	cIPTC = 0xFFED // APP13, "Photoshop 3.0\x00"
-
-	cSOF0  = 0xFFC0 // Start of Frame (baseline JPEG)
-	cSOF1  = 0xFFC1 // Start of Frame (baseline JPEG)
-	cSOF11 = 0xFFCB // usually unsupported
-
-	cDHT = 0xFFC4 // Huffman Table
-	cDAC = 0xFFCC // Define Arithmetic Table, usually unsupported
-	cDQT = 0xFFDB // DQT, Quantization table definition
-	cSOS = 0xFFDA
-
-	cRST0 = 0xFFD0 // RSTn are used for resync, may be ignored
-	cRST7 = 0xFFD7 //
-	cTEM  = 0xFF01 // usually causes a decoding error, may be ignored
-
-	cDNL = 0xFFDC // usually unsupported, ignore
-	cDRI = 0xFFDD // Define Restart Interval, for details see below
-	cDHP = 0xFFDE // ignore (skip)
-	cEXP = 0xFFDF // ignore (skip)
-
-	cJPG   = 0xFFC8
-	cJPG0  = 0xFFF0 // ignore (skip)
-	cJPG13 = 0xFFFD // ignore (skip)
-
-	cCOMMENT = 0xFFFE // Comment, may be ignored
-)
-
-type eAction byte
-
-const (
-	eBegin eAction = 1
-	eEnd   eAction = 2
-	eRead  eAction = 3
-)
-
-var aSegments = map[uint16]tAPPSegment{
-
-	cSOI:  {name: "SOI", marker: cSOI, action: eBegin, reader: nil},
-	cEOI:  {name: "EOI", marker: cEOI, action: eEnd, reader: nil},
-	cJFIF: {name: "JFIF", marker: cJFIF, action: eRead, reader: readJF},
-	cEXIF: {name: "EXIF", marker: cEXIF, action: eRead, reader: readAPP1},
-	cICC:  {name: "ICC", marker: cICC, action: eRead, reader: readAPP2},
-	cMETA: {name: "META", marker: cMETA, action: eRead, reader: readIgnore},
-	cIPTC: {name: "IPTC", marker: cIPTC, action: eRead, reader: readIgnore},
-
-	cSOF0:     {name: "cSOF0", marker: cSOF0, action: eRead, reader: readIgnore},
-	cSOF1:     {name: "cSOF1", marker: cSOF1, action: eRead, reader: readIgnore},
-	cSOF1 + 1: {name: "cSOF2", marker: cSOF1 + 1, action: eRead, reader: readIgnore},
-	cSOF1 + 2: {name: "cSOF3", marker: cSOF1 + 2, action: eRead, reader: readIgnore},
-	cSOF1 + 4: {name: "cSOF5", marker: cSOF1 + 4, action: eRead, reader: readIgnore},
-	cSOF1 + 5: {name: "cSOF6", marker: cSOF1 + 5, action: eRead, reader: readIgnore},
-	cSOF1 + 6: {name: "cSOF7", marker: cSOF1 + 6, action: eRead, reader: readIgnore},
-	cSOF1 + 8: {name: "cSOF9", marker: cSOF1 + 8, action: eRead, reader: readIgnore},
-	cSOF1 + 9: {name: "cSOF10", marker: cSOF1 + 9, action: eRead, reader: readIgnore},
-	cSOF11:    {name: "cSOF11", marker: cSOF11, action: eRead, reader: readIgnore},
-
-	cDHT: {name: "cDHT", marker: cDHT, action: eRead, reader: readIgnore},
-	cDAC: {name: "cDAC", marker: cDAC, action: eRead, reader: readIgnore},
-	cDQT: {name: "cDQT", marker: cDQT, action: eRead, reader: readIgnore},
-	cSOS: {name: "cSOS", marker: cSOS, action: eEnd, reader: readIgnore},
-
-	cRST0:     {name: "cRST0", marker: cRST0, action: eRead, reader: readIgnore},
-	cRST0 + 1: {name: "cRST1", marker: cRST0 + 6, action: eRead, reader: readIgnore},
-	cRST0 + 2: {name: "cRST2", marker: cRST0 + 5, action: eRead, reader: readIgnore},
-	cRST0 + 3: {name: "cRST3", marker: cRST0 + 4, action: eRead, reader: readIgnore},
-	cRST0 + 4: {name: "cRST4", marker: cRST0 + 3, action: eRead, reader: readIgnore},
-	cRST0 + 5: {name: "cRST5", marker: cRST0 + 2, action: eRead, reader: readIgnore},
-	cRST0 + 6: {name: "cRST6", marker: cRST0 + 1, action: eRead, reader: readIgnore},
-	cRST7:     {name: "cRST7", marker: cRST7, action: eRead, reader: readIgnore},
-	cTEM:      {name: "cTEM", marker: cTEM, action: eRead, reader: readIgnore},
-
-	cDNL: {name: "cDNL", marker: cDNL, action: eRead, reader: readIgnore},
-	cDRI: {name: "cDRI", marker: cDRI, action: eRead, reader: readIgnore},
-	cDHP: {name: "cDHP", marker: cDHP, action: eRead, reader: readIgnore},
-	cEXP: {name: "cEXP", marker: cEXP, action: eRead, reader: readIgnore},
-
-	cJPG:   {name: "cJPG", marker: cJPG, action: eRead, reader: readIgnore},
-	cJPG0:  {name: "cJPG0", marker: cJPG0, action: eRead, reader: readIgnore},
-	cJPG13: {name: "cJPG13", marker: cJPG13, action: eRead, reader: readIgnore},
-
-	cCOMMENT: {name: "Comment", marker: cCOMMENT, action: eRead, reader: readComment},
-}
-
-// APP represents an APP section of the image file
-type APP interface {
-	Name() string
-	ReadValue(uint16) (interface{}, error)
-}
-
-type tAPP struct {
-	name   string
-	offset uint64           // Offset of this APP in the file
-	endian binary.ByteOrder // TIFF-Header, Byte-Order
-	block  []byte           // full APP block
-}
-
-func (t tAPP) length() uint16 {
-	return ReadU16(t.block[2:], t.endian)
-}
-func (t tAPP) marker() uint16 {
-	return ReadU16(t.block[2:], t.endian)
-}
-func (t tAPP) identifier() (id []byte) {
-	id = t.block[4:10]
-	return
-}
-func (t tAPP) hasIdentifier(id []byte) bool {
-	aid := t.identifier()
-	for i, b := range id {
-		if b != aid[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func (t tAPP) Name() string {
-	return t.name
-}
-func (t tAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
-	fmt.Printf("Read value of tag:0x%X in APP:BASIC\n", tagID2Find)
-	return int(0), nil
-}
+// ============================================== EXIF =======================================================
 
 type tEXIFAPP struct {
 	name   string
@@ -418,9 +17,28 @@ type tEXIFAPP struct {
 func (t tEXIFAPP) Name() string {
 	return t.name
 }
+func (t tEXIFAPP) Marker() uint16 {
+	return t.endian.Uint16(t.block)
+}
+func (t tEXIFAPP) Length() uint16 {
+	return t.endian.Uint16(t.block[2:])
+}
+func (t tEXIFAPP) ID(cid []byte) (id []byte) {
+	id = t.block[4 : 4+len(cid)]
+	return
+}
+func (t tEXIFAPP) HasID(cid []byte) bool {
+	id := t.block[4 : 4+len(cid)]
+	for i, b := range id {
+		if b != cid[i] {
+			return false
+		}
+	}
+	return true
+}
 
 func (t tEXIFAPP) TIFFByteOrder() binary.ByteOrder {
-	bo := ReadU16(t.block[10:12], binary.BigEndian)
+	bo := binary.BigEndian.Uint16(t.block[10:12])
 	if bo == cINTEL {
 		return binary.LittleEndian
 	}
@@ -429,7 +47,7 @@ func (t tEXIFAPP) TIFFByteOrder() binary.ByteOrder {
 
 func (t tEXIFAPP) TIFFOffsetToIFD0() uint32 {
 	endian := t.TIFFByteOrder()
-	return ReadU32(t.block[14:18], endian)
+	return endian.Uint32(t.block[14:18])
 }
 
 type ifdOffsetItem struct {
@@ -494,7 +112,7 @@ type tExifIFD struct {
 }
 
 func (ifd tExifIFD) NumberOfTags() uint32 {
-	return uint32(ReadU16(ifd.appblock[ifd.offset:], ifd.endian))
+	return uint32(ifd.endian.Uint16(ifd.appblock[ifd.offset:]))
 }
 
 func (ifd tExifIFD) GetTag(index uint32) tExifTag {
@@ -520,16 +138,16 @@ type tExifTag struct {
 }
 
 func (tag tExifTag) TagID() uint16 {
-	return ReadU16(tag.appblock[tag.offset:], tag.endian)
+	return tag.endian.Uint16(tag.appblock[tag.offset:])
 }
 func (tag tExifTag) TypeID() uint16 {
-	return ReadU16(tag.appblock[tag.offset+2:], tag.endian)
+	return tag.endian.Uint16(tag.appblock[tag.offset+2:])
 }
-func (tag tExifTag) countOrComponents() int32 {
-	return ReadS32(tag.appblock[tag.offset+4:], tag.endian)
+func (tag tExifTag) countOrComponents() uint32 {
+	return tag.endian.Uint32(tag.appblock[tag.offset+4:])
 }
 func (tag tExifTag) valueOrOffset() uint32 {
-	return ReadU32(tag.appblock[tag.offset+8:], tag.endian)
+	return tag.endian.Uint32(tag.appblock[tag.offset+8:])
 }
 func (tag tExifTag) valueAsFloat32() float32 {
 	bits := binary.LittleEndian.Uint32(tag.appblock[tag.offset+8:])
@@ -571,8 +189,8 @@ func (ifd tExifIFD) readValueFromOffset(offset uint32, typeID uint16) (interface
 		denominator := ifd.endian.Uint32(ifd.appblock[ifd.offset+offset+4:])
 		return float64(numerator) / float64(denominator), nil
 	case cSRATIONAL:
-		numerator := (ifd.endian.Uint32(ifd.appblock[ifd.offset+offset:]))
-		denominator := (ifd.endian.Uint32(ifd.appblock[ifd.offset+offset+4:]))
+		numerator := int32(ifd.endian.Uint32(ifd.appblock[ifd.offset+offset:]))
+		denominator := int32(ifd.endian.Uint32(ifd.appblock[ifd.offset+offset+4:]))
 		return float64(numerator) / float64(denominator), nil
 	}
 	return int(0), &exifError{"Reading EXIF tag value from offset failed"}
@@ -603,18 +221,6 @@ func (ifd tExifIFD) ReadValue(tag tExifTag) (interface{}, error) {
 	}
 	return int(0), &exifError{"Reading EXIF tag value failed"}
 }
-
-const (
-	cINTEL    = 0x4949
-	cMOTOROLA = 0x4D4D
-)
-
-const (
-	cIFDZERO    uint16 = 0x0000
-	cIFDEXIF    uint16 = 0x8769
-	cIFDGPS     uint16 = 0x8825
-	cIFDINTEROP uint16 = 0xa005
-)
 
 const (
 	ExifTagImageWidth                  uint16 = 0x100
@@ -1045,39 +651,4 @@ var aExifStringEnums = map[int]string{
 	cComponents + 4: "R",
 	cComponents + 5: "G",
 	cComponents + 6: "B",
-}
-
-// ReadU16 does read a unsigned short from the start of the byte slice
-func ReadU16(slice []byte, endian binary.ByteOrder) (value uint16) {
-	if endian == binary.BigEndian {
-		value = uint16(slice[0])<<8 | uint16(slice[1])
-	} else {
-		value = uint16(slice[1])<<8 | uint16(slice[0])
-	}
-	return
-}
-
-// ReadU32 does read a unsigned 32-bit integer from the start of the byte slice
-func ReadU32(slice []byte, endian binary.ByteOrder) uint32 {
-	if endian == binary.BigEndian {
-		return uint32(slice[0])<<24 | uint32(slice[1])<<16 | uint32(slice[2])<<8 | uint32(slice[3])
-	}
-	return uint32(slice[3])<<24 | uint32(slice[2])<<16 | uint32(slice[1])<<8 | uint32(slice[0])
-}
-
-// ReadS32 does read a signed 32-bit integer from the start of the byte slice
-func ReadS32(slice []byte, endian binary.ByteOrder) int32 {
-	if endian == binary.BigEndian {
-		return int32(slice[0])<<24 | int32(slice[1])<<16 | int32(slice[2])<<8 | int32(slice[3])
-	}
-	return int32(slice[3])<<24 | int32(slice[2])<<16 | int32(slice[1])<<8 | int32(slice[0])
-}
-
-// WriteU16 does read a unsigned short from the start of the byte slice
-func WriteU16(value uint16, slice []byte, endian binary.ByteOrder) {
-	if endian == binary.BigEndian {
-		slice[0], slice[1] = byte(value>>8), byte(value)
-	} else {
-		slice[1], slice[0] = byte(value>>8), byte(value)
-	}
 }
