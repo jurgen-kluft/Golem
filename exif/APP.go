@@ -127,6 +127,7 @@ func fAPPReadIPTC(marker uint16, reader *JpegReader) (a APP, err error) {
 	app := &tIPTCAPP{name: "IPTC"}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
 	app.offset = 10
+	app.endian = binary.BigEndian
 	if app.HasID(idIPTC) {
 		return app, nil
 	}

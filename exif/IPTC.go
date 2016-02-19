@@ -74,7 +74,7 @@ accomodated more simply by other JPEG Segments):
 type tIPTCAPP struct {
 	name   string
 	offset uint64           // Offset of this APP in the file
-	endian binary.ByteOrder // TIFF-Header, Byte-Order
+	endian binary.ByteOrder // Byte-Order
 	block  []byte           // full APP block
 }
 
@@ -102,24 +102,45 @@ func (t tIPTCAPP) HasID(cid []byte) bool {
 }
 
 type tIPTCHeader struct {
-	block []byte
+	block  []byte
+	endian binary.ByteOrder // Byte-Order
+}
+
+type tIPTCRecordReader struct {
+	block  []byte
+	endian binary.ByteOrder // Byte-Order
+	cursor uint32
+}
+
+func (t tIPTCRecordReader) Tag() uint16 {
+	return t.endian.Uint16(t.block[t.cursor:])
+}
+func (t tIPTCRecordReader) Size() uint16 {
+	return t.endian.Uint16(t.block[t.cursor+1:])
+}
+func (t tIPTCRecordReader) Next() bool {
+	t.cursor += uint32(t.Size())
+	return t.cursor < uint32(len(t.block))
 }
 
 func (t tIPTCHeader) Has8BIM() bool {
 	return t.block[0] == '8' && t.block[1] == 'B' && (t.block[2] == 'I' || t.block[2] == 'P') && (t.block[3] == 'M' || t.block[3] == 'S')
 }
 func (t tIPTCHeader) HasIPTCID() bool {
-	return t.block[5] == 4 && t.block[6] == 4
+	return t.block[4] == 4 && t.block[5] == 4
 }
 func (t tIPTCHeader) NameLen() uint32 {
-	return uint32(t.block[7])
+	return uint32(t.block[6])
 }
-func (t tIPTCHeader) NameLen() uint32 {
-	return uint32(t.block[7])
+func (t tIPTCHeader) Size() uint32 {
+	offset := 6 + t.NameLen()
+	return t.endian.Uint32(t.block[offset:])
 }
 
 func (t tIPTCAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
 	fmt.Printf("IPTC, marker:")
+
+	// @WORK IN PROGRESS
 
 	for i := 0; i < 10; i++ {
 		b := t.block[14+4+i]
@@ -130,8 +151,8 @@ func (t tIPTCAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
 }
 
 const (
-	IptcTagGroupEnvelope    = 0x00010000
-	IptcTagGroupApplication = 0x00020000
+	IptcTagGroupEnvelope    = 0x1000
+	IptcTagGroupApplication = 0x2000
 )
 
 const (
@@ -209,7 +230,7 @@ const (
 )
 
 type tIPTCField struct {
-	tagTypeID      uint32
+	tagTypeID      uint16
 	fieldTypeID    uint16
 	isMandatory    bool
 	isRepeatable   bool
@@ -231,7 +252,7 @@ const (
 	No  bool = false
 )
 
-var ArrayOfIPTCFields = map[uint32]tIPTCField{
+var ArrayOfIPTCFields = map[uint16]tIPTCField{
 	IptcTagEnvelopeModelVersion:              {IptcTagEnvelopeModelVersion, IptcFieldTypeShort, Yes, No, 2, 2, "A binary number identifying the version of the Information Interchange Model"},
 	IptcTagEnvelopeDestination:               {IptcTagEnvelopeDestination, IptcFieldTypeString, No, Yes, 0, 1024, "This DataSet is to accommodate some providers who require routing information above the appropriate OSI layers."},
 	IptcTagEnvelopeFileFormat:                {IptcTagEnvelopeFileFormat, IptcFieldTypeShort, Yes, No, 2, 2, "A binary number representing the file format. The file format must be registered with IPTC or NAA with a unique number assigned to it. The information is used to route the data to the appropriate system and to allow the receiving system to perform the appropriate actions there to."},
