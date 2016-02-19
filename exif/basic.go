@@ -1,11 +1,13 @@
-package EXIF
+package ImgMeta
 
-import ()
+import (
+	"fmt"
+)
 
 // BasicInfo contains the most basic information that could be asked for
 type BasicInfo struct {
-	Width    int
-	Height   int
+	Width    float64
+	Height   float64
 	Title    string
 	Descr    string
 	Keywords []string
@@ -13,6 +15,17 @@ type BasicInfo struct {
 
 // GetBasicInfo gets the basic information from the meta-information of the image
 func GetBasicInfo(img Image) (info BasicInfo) {
-
+	width, err := img.ReadTagValue("EXIF", ExifTagXResolution)
+	if err == nil {
+		info.Width = width.(float64)
+	} else {
+		fmt.Println(err.Error())
+	}
+	height, err := img.ReadTagValue("EXIF", ExifTagYResolution)
+	if err == nil {
+		info.Height = height.(float64)
+	} else {
+		fmt.Println(err.Error())
+	}
 	return
 }

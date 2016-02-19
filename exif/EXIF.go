@@ -1,9 +1,10 @@
-package EXIF
+package ImgMeta
 
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
+	"math"
+	"os"
 )
 
 // ============================================== JPEG ==============================================
@@ -15,26 +16,67 @@ func (e *exifError) Error() string {
 	return fmt.Sprintf("%s", e.descr)
 }
 
+type JpegReader struct {
+	cursor uint64
+	data   []byte
+}
+
+func (b *JpegReader) Read(p []byte) (n int, err error) {
+	for i := 0; i < len(p); i++ {
+		p[i] = b.data[b.cursor]
+		b.cursor++
+	}
+	return len(p), nil
+}
+
+func (b *JpegReader) ReadByte() byte {
+	v := b.data[b.cursor]
+	b.cursor++
+	return v
+}
+
+func newJpegReader(fhnd *os.File) (reader *JpegReader, n int, err error) {
+	stat, err := fhnd.Stat()
+	reader = &JpegReader{cursor: 0, data: nil}
+	if err != nil {
+		return reader, 0, err
+	}
+	size := stat.Size()
+	reader.cursor = 0
+	reader.data = make([]byte, size)
+	n, err = fhnd.Read(reader.data)
+	return
+}
+
+func (b *JpegReader) pos() uint64 {
+	return b.cursor
+}
+
 // ReadJpeg will read all sections from the image data
-func ReadJpeg(reader io.Reader) (image Image, err error) {
+func ReadJpeg(fhnd *os.File) (image Image, err error) {
+	image = Image{apps: map[string]APP{}}
+	reader, n, err := newJpegReader(fhnd)
+	if n == 0 || err != nil {
+		return
+	}
+
 	marker := uint16(0)
 	binary.Read(reader, binary.BigEndian, &marker)
 	if marker != cSOI {
 		return image, &exifError{"Wrong format"}
 	}
 
-	fmt.Println("Reading JPEG APP segments")
+	//fmt.Println("Reading JPEG APP segments")
 
 	appHeader := make([]byte, 2)
 	for true {
-		n, err := reader.Read(appHeader)
+		n, err = reader.Read(appHeader)
 		if n != len(appHeader) || err != nil {
 			break
 		}
 		if appHeader[0] == 0xFF {
-
 			for appHeader[1] == 0xFF {
-				reader.Read(appHeader[1:])
+				appHeader[1] = reader.ReadByte()
 			}
 
 			marker = ReadU16(appHeader, binary.BigEndian)
@@ -42,21 +84,22 @@ func ReadJpeg(reader io.Reader) (image Image, err error) {
 			if !ok {
 				return image, &exifError{"Unidentified APP marker encountered"}
 			}
-			fmt.Printf("Encountered marker %s\n", segment.name)
+			//fmt.Printf("Encountered marker %s\n", segment.name)
 
 			if segment.action == eEnd {
-				fmt.Printf("Encountered 'end' marked segment %s\n", segment.name)
+				//fmt.Printf("Encountered 'end' marked segment %s\n", segment.name)
 				break
 			}
 			if segment.action == eBegin {
 				continue
 			}
 
-			appSegment, err := segment.reader(marker, reader)
+			app, err := segment.reader(marker, reader)
 			if err != nil {
 				return image, err
 			}
-			image.apps = append(image.apps, appSegment)
+			//fmt.Printf("Registering APP %s\n", app.Name())
+			image.apps[app.Name()] = app
 
 		} else {
 			// Not a section marker
@@ -67,30 +110,26 @@ func ReadJpeg(reader io.Reader) (image Image, err error) {
 	return image, nil
 }
 
-func readTIFF(tiff []byte) (endian binary.ByteOrder, offset uint32, err error) {
-	bo := ReadU16(tiff, binary.BigEndian)
-	if bo == cINTEL {
-		endian = binary.LittleEndian
-	} else if bo == cMOTOROLA {
-		endian = binary.BigEndian
-	} else {
-		err = &exifError{"TIFF-header Byte-Order is not matching 'II' or 'MM'"}
-		return
-	}
-	tiffID := ReadU16(tiff[2:], binary.BigEndian)
-	if tiffID != 0x002A {
-		err = &exifError{fmt.Sprintf("TIFF-header ID is not matching, 0x002A!=0x%X", tiffID)}
-		return
-	}
-	offset = ReadU32(tiff[4:], binary.BigEndian)
-	return
-}
-
 // ============================================== EXIF ==============================================
 
 // Image holds both 'Image Data' and 'AP'
 type Image struct {
-	apps []tAPP
+	apps map[string]APP
+}
+
+// ReadTagValue reads the value of a tag given as an ID
+// Examples:
+//             imageWidth := image.ReadTagValue("EXIF", TagImageWidth)
+//             imageHeight := image.ReadTagValue("EXIF", TagImageHeight)
+
+func (i Image) ReadTagValue(appname string, tagID uint16) (value interface{}, err error) {
+	app, exists := i.apps[appname]
+	if !exists {
+		fmt.Printf("Image does not have '%s' meta section\n", appname)
+		return nil, nil
+	}
+	value, err = app.ReadValue(tagID)
+	return
 }
 
 var idJFIF = []byte{'J', 'F', 'I', 'F'}
@@ -99,7 +138,7 @@ var idEXIF = []byte{'E', 'x', 'i', 'f'}
 var idXMP = []byte{'h', 't', 't', 'p'}
 var idAPP2 = []byte{'I', 'C', 'C', '_'}
 
-type tAPPReader func(uint16, io.Reader) (tAPP, error)
+type tAPPReader func(uint16, *JpegReader) (APP, error)
 
 type tAPPSegment struct {
 	name   string
@@ -108,7 +147,7 @@ type tAPPSegment struct {
 	reader tAPPReader
 }
 
-func readAPPBlock(marker uint16, reader io.Reader, extra uint32) (appblock []byte, err error) {
+func readAPPBlock(marker uint16, reader *JpegReader, extra uint32) (appblock []byte, err error) {
 	appLength := uint16(0)
 	binary.Read(reader, binary.BigEndian, &appLength)
 
@@ -126,79 +165,112 @@ func readAPPBlock(marker uint16, reader io.Reader, extra uint32) (appblock []byt
 	return
 }
 
-func readComment(marker uint16, reader io.Reader) (app tAPP, err error) {
-	fmt.Print("APP:COMMENT = ")
+func readComment(marker uint16, reader *JpegReader) (a APP, err error) {
+	//fmt.Print("APP:COMMENT = ")
+	var app tAPP
+	app.name = "COMMENT"
 	app.block, err = readAPPBlock(marker, reader, 0)
 	app.offset = 10
 	comment := string(app.block[4:])
 	fmt.Println(comment)
-	return
-}
-
-func readJFIF(app tAPP) (a tAPP, err error) {
-	fmt.Printf("APP:JFIF (length: %d)\n", len(app.block))
 	return app, nil
 }
 
-func readJFXX(app tAPP) (a tAPP, err error) {
-	fmt.Printf("APP:JFXX (length: %d)\n", len(app.block))
-	return app, nil
+func readJFIF(app tAPP) (err error) {
+	//fmt.Printf("APP:JFIF (length: %d)\n", len(app.block))
+	app.name = "JFIF"
+	return nil
 }
 
-func readJF(marker uint16, reader io.Reader) (app tAPP, err error) {
+func readJFXX(app tAPP) (err error) {
+	//fmt.Printf("APP:JFXX (length: %d)\n", len(app.block))
+	app.name = "JFXX"
+	return nil
+}
+
+func readJF(marker uint16, reader *JpegReader) (a APP, err error) {
+	var app tAPP
 	app.block, err = readAPPBlock(marker, reader, 0)
 	app.offset = 10
 	if app.hasIdentifier(idJFIF) {
-		return readJFIF(app)
+		return app, readJFIF(app)
 	} else if app.hasIdentifier(idJFXX) {
-		return readJFIF(app)
+		return app, readJFIF(app)
 	}
 	return app, &exifError{"APP0 has wrong identifier, should be 'JFIF' or 'JFXX'"}
 }
 
-func readEXIF(app tAPP) (a tAPP, err error) {
-	fmt.Printf("APP:EXIF (length: %d)\n", len(app.block))
-	app.endian, app.offset, err = readTIFF(app.block[10:18])
-	return app, nil
+func readTIFF(tiff []byte) (endian binary.ByteOrder, offset uint64, err error) {
+	bo := ReadU16(tiff, binary.BigEndian)
+	if bo == cINTEL {
+		endian = binary.LittleEndian
+	} else if bo == cMOTOROLA {
+		endian = binary.BigEndian
+	} else {
+		err = &exifError{"TIFF-header Byte-Order is not matching 'II' or 'MM'"}
+		return
+	}
+	tiffID := ReadU16(tiff[2:], binary.BigEndian)
+	if tiffID != 0x002A {
+		err = &exifError{fmt.Sprintf("TIFF-header ID is not matching, 0x002A!=0x%X", tiffID)}
+		return
+	}
+	offset = uint64(ReadU32(tiff[4:], binary.BigEndian))
+	return
 }
 
-func readXMP(app tAPP) (a tAPP, err error) {
-	fmt.Printf("APP:XMP (length: %d)\n", len(app.block))
-	return app, nil
+func (app tEXIFAPP) read() (err error) {
+	//fmt.Printf("APP:EXIF (length: %d)\n", len(app.block))
+	return nil
+}
+
+func readXMP(app tAPP) (err error) {
+	//fmt.Printf("APP:XMP (length: %d)\n", len(app.block))
+	return nil
 }
 
 // EXIF or XMP
-func readAPP1(marker uint16, reader io.Reader) (app tAPP, err error) {
+func readAPP1(marker uint16, reader *JpegReader) (a APP, err error) {
+	var app tAPP
+	app.offset = reader.pos()
 	app.block, err = readAPPBlock(marker, reader, 0)
-	app.offset = 10
 	if app.hasIdentifier(idEXIF) {
-		return readEXIF(app)
+		exif := tEXIFAPP{name: "EXIF"}
+		exif.block = app.block
+		exif.offset = app.offset
+		err = exif.read()
+		return exif, err
 	} else if app.hasIdentifier(idXMP) {
-		return readXMP(app)
+		app.name = "XMP"
+		return app, readXMP(app)
 	}
 	return app, &exifError{"APP1 has wrong identifier, should be 'EXIF' or 'XMP'"}
 }
 
-func readICCPROFILE(app tAPP) (a tAPP, err error) {
-	fmt.Printf("APP:ICC_PROFILE (length: %d)\n", len(app.block))
-	return app, nil
+func readICCPROFILE(app tAPP) (err error) {
+	//fmt.Printf("APP:ICC_PROFILE (length: %d)\n", len(app.block))
+	return nil
 }
 
-func readAPP2(marker uint16, reader io.Reader) (app tAPP, err error) {
+func readAPP2(marker uint16, reader *JpegReader) (a APP, err error) {
+	var app tAPP
 	app.block, err = readAPPBlock(marker, reader, 0)
 	app.offset = 10
 	if app.hasIdentifier(idAPP2) {
-		return readICCPROFILE(app)
+		return app, readICCPROFILE(app)
 	}
 	return app, &exifError{"APP2 has wrong identifier, should be 'ICC_PROFILE'"}
 }
 
-func readIgnore(marker uint16, reader io.Reader) (app tAPP, err error) {
+func readIgnore(marker uint16, reader *JpegReader) (a APP, err error) {
+	var app tAPP
 	app.block, err = readAPPBlock(marker, reader, 0)
 	app.offset = 10
 
+	app.name = fmt.Sprintf("0x%X", marker)
+
 	// ignore
-	fmt.Printf("APP:[ignore] (length: %d)\n", len(app.block))
+	//fmt.Printf("APP:[ignore] (length: %d)\n", len(app.block))
 
 	return app, nil
 }
@@ -249,10 +321,10 @@ const (
 
 var aSegments = map[uint16]tAPPSegment{
 
-	cSOI:  {name: "Start of Image", marker: cSOI, action: eBegin, reader: nil},
-	cEOI:  {name: "End of Image", marker: cEOI, action: eEnd, reader: nil},
-	cJFIF: {name: "JFIF application segment", marker: cJFIF, action: eRead, reader: readJF},
-	cEXIF: {name: "EXIF application segment", marker: cEXIF, action: eRead, reader: readAPP1},
+	cSOI:  {name: "SOI", marker: cSOI, action: eBegin, reader: nil},
+	cEOI:  {name: "EOI", marker: cEOI, action: eEnd, reader: nil},
+	cJFIF: {name: "JFIF", marker: cJFIF, action: eRead, reader: readJF},
+	cEXIF: {name: "EXIF", marker: cEXIF, action: eRead, reader: readAPP1},
 	cICC:  {name: "ICC", marker: cICC, action: eRead, reader: readAPP2},
 	cMETA: {name: "META", marker: cMETA, action: eRead, reader: readIgnore},
 	cIPTC: {name: "IPTC", marker: cIPTC, action: eRead, reader: readIgnore},
@@ -295,14 +367,15 @@ var aSegments = map[uint16]tAPPSegment{
 	cCOMMENT: {name: "Comment", marker: cCOMMENT, action: eRead, reader: readComment},
 }
 
-type tData struct {
-	offset uint64 // Offset in file
-	size   uint64 // Image data size (including begin and end marker)
-	data   []byte
+// APP represents an APP section of the image file
+type APP interface {
+	Name() string
+	ReadValue(uint16) (interface{}, error)
 }
 
 type tAPP struct {
-	offset uint32           // TIFF-Offset
+	name   string
+	offset uint64           // Offset of this APP in the file
 	endian binary.ByteOrder // TIFF-Header, Byte-Order
 	block  []byte           // full APP block
 }
@@ -327,43 +400,141 @@ func (t tAPP) hasIdentifier(id []byte) bool {
 	return true
 }
 
-type tExifIFD struct {
-	offset uint             // TIFF-Offset
+func (t tAPP) Name() string {
+	return t.name
+}
+func (t tAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
+	fmt.Printf("Read value of tag:0x%X in APP:BASIC\n", tagID2Find)
+	return int(0), nil
+}
+
+type tEXIFAPP struct {
+	name   string
+	offset uint64           // Offset of this APP in the file
 	endian binary.ByteOrder // TIFF-Header, Byte-Order
-	block  []byte
+	block  []byte           // full APP block
 }
 
-func (t tExifIFD) numberOfExifTags() (value uint16) {
-	value = ReadU16(t.block, t.endian)
-	return
+func (t tEXIFAPP) Name() string {
+	return t.name
 }
 
-func (t tExifIFD) offsetToIFD0() (value uint32) {
-	o := 2 + t.numberOfExifTags()*12
-	value = ReadU32(t.block[o:], t.endian)
-	return
+func (t tEXIFAPP) TIFFByteOrder() binary.ByteOrder {
+	bo := ReadU16(t.block[10:12], binary.BigEndian)
+	if bo == cINTEL {
+		return binary.LittleEndian
+	}
+	return binary.BigEndian
 }
-func (t tExifIFD) getExifTag(index int) tExifTag {
-	o := 2 + (index * 12)
-	return tExifTag{block: t.block[o : o+12], endian: t.endian}
+
+func (t tEXIFAPP) TIFFOffsetToIFD0() uint32 {
+	endian := t.TIFFByteOrder()
+	return ReadU32(t.block[14:18], endian)
+}
+
+type ifdOffsetItem struct {
+	offset  uint32
+	ifdType uint16
+}
+
+func (t tEXIFAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
+	//fmt.Printf("Read value of tag:0x%X in APP:EXIF\n", tagID2Find)
+
+	tiffOffset := uint32(10)
+	ifd0Offset := tiffOffset + t.TIFFOffsetToIFD0()
+	endian := t.TIFFByteOrder()
+
+	ifdQueue := []ifdOffsetItem{}
+	ifdQueue = append(ifdQueue, ifdOffsetItem{offset: ifd0Offset, ifdType: cIFDZERO})
+
+	for len(ifdQueue) > 0 {
+		// Pop the next offset to process
+		ifdItem := ifdQueue[len(ifdQueue)-1]
+		ifdQueue = ifdQueue[:len(ifdQueue)-1]
+
+		ifd := tExifIFD{offset: ifdItem.offset, appblock: t.block, endian: endian}
+		// How many fields does this IFD have ?
+		numberOfTags := ifd.NumberOfTags()
+		//fmt.Printf("Checking ifd:0x%X at offset:%d with %d fields\n", ifdItem.ifdType, ifdItem.offset, numberOfTags)
+
+		for i := uint32(0); i < numberOfTags; i++ {
+			tag := ifd.GetTag(i)
+			tagID := tag.TagID()
+
+			//fmt.Printf("Checking tag:0x%X at index:%d\n", tagID, i)
+			if tagID == tagID2Find {
+				//fmt.Printf("Found tag:0x%X in APP:EXIF at index %d\n", tagID, i)
+				return ifd.ReadValue(tag)
+			}
+
+			// IFD0, reading the offsets to the other IFD segments
+			if ifdItem.ifdType == cIFDZERO && tagID == cIFDEXIF {
+				//fmt.Printf("Found ifd:0x%X in APP:EXIF at index %d\n", tagID, i)
+				anotherIfdOffset := tiffOffset + tag.valueOrOffset()
+				ifdQueue = append(ifdQueue, ifdOffsetItem{offset: anotherIfdOffset, ifdType: cIFDEXIF})
+			} else if ifdItem.ifdType == cIFDZERO && tagID == cIFDGPS {
+				//fmt.Printf("Found gps:0x%X in APP:EXIF at index %d\n", tagID, i)
+				anotherIfdOffset := tiffOffset + tag.valueOrOffset()
+				ifdQueue = append(ifdQueue, ifdOffsetItem{offset: anotherIfdOffset, ifdType: cIFDGPS})
+			} else if ifdItem.ifdType == cIFDEXIF && tagID == cIFDINTEROP {
+				//fmt.Printf("Found iop:0x%X in APP:EXIF at index %d\n", tag, i)
+				anotherIfdOffset := tiffOffset + tag.valueOrOffset()
+				ifdQueue = append(ifdQueue, ifdOffsetItem{offset: anotherIfdOffset, ifdType: cIFDINTEROP})
+			}
+		}
+	}
+
+	return int(1), nil
+}
+
+type tExifIFD struct {
+	offset   uint32           // IFD-Offset
+	endian   binary.ByteOrder // Endian
+	appblock []byte
+}
+
+func (ifd tExifIFD) NumberOfTags() uint32 {
+	return uint32(ReadU16(ifd.appblock[ifd.offset:], ifd.endian))
+}
+
+func (ifd tExifIFD) GetTag(index uint32) tExifTag {
+	o := ifd.offset + 2 + (index * 12)
+	return tExifTag{appblock: ifd.appblock[o : o+12], endian: ifd.endian}
+}
+
+func (ifd tExifIFD) FindTag(id uint16) (tExifTag, bool) {
+	n := ifd.NumberOfTags()
+	for i := uint32(0); i < n; i++ {
+		tag := ifd.GetTag(i)
+		if tag.TagID() == id {
+			return tag, true
+		}
+	}
+	return tExifTag{appblock: ifd.appblock[0:0], endian: ifd.endian}, false
 }
 
 type tExifTag struct {
-	endian binary.ByteOrder
-	block  []byte
+	endian   binary.ByteOrder
+	offset   uint32
+	appblock []byte
 }
 
-func (t tExifTag) Tag() uint16 {
-	return ReadU16(t.block, t.endian)
+func (tag tExifTag) TagID() uint16 {
+	return ReadU16(tag.appblock[tag.offset:], tag.endian)
 }
-func (t tExifTag) Type() uint16 {
-	return ReadU16(t.block[2:], t.endian)
+func (tag tExifTag) TypeID() uint16 {
+	return ReadU16(tag.appblock[tag.offset+2:], tag.endian)
 }
-func (t tExifTag) Count() int32 {
-	return ReadS32(t.block[4:], t.endian)
+func (tag tExifTag) countOrComponents() int32 {
+	return ReadS32(tag.appblock[tag.offset+4:], tag.endian)
 }
-func (t tExifTag) ValueOffset() int32 {
-	return ReadS32(t.block[8:], t.endian)
+func (tag tExifTag) valueOrOffset() uint32 {
+	return ReadU32(tag.appblock[tag.offset+8:], tag.endian)
+}
+func (tag tExifTag) valueAsFloat32() float32 {
+	bits := binary.LittleEndian.Uint32(tag.appblock[tag.offset+8:])
+	float := math.Float32frombits(bits)
+	return float
 }
 
 type tExifTagFieldType uint16
@@ -375,183 +546,366 @@ func getExifTagFieldSize(fieldType tExifTagFieldType) int {
 }
 
 const (
-	cUBYTE     tExifTagFieldType = 1
-	cASCII     tExifTagFieldType = 2
-	cUSHORT    tExifTagFieldType = 3
-	cULONG     tExifTagFieldType = 4
-	cURATIONAL tExifTagFieldType = 5
-	cSBYTE     tExifTagFieldType = 6
-	cUNDEFINED tExifTagFieldType = 7
-	cSSHORT    tExifTagFieldType = 8
-	cSLONG     tExifTagFieldType = 9
-	cSRATIONAL tExifTagFieldType = 10
-	cFLOAT32   tExifTagFieldType = 11
-	cFLOAT64   tExifTagFieldType = 12
+	cUBYTE     = 1
+	cASCII     = 2
+	cUSHORT    = 3
+	cULONG     = 4
+	cURATIONAL = 5
+	cSBYTE     = 6
+	cUNDEFINED = 7
+	cSSHORT    = 8
+	cSLONG     = 9
+	cSRATIONAL = 10
+	cFLOAT32   = 11
+	cFLOAT64   = 12
 )
+
+func (ifd tExifIFD) readValueFromOffset(offset uint32, typeID uint16) (interface{}, error) {
+	switch typeID {
+	case cFLOAT64:
+		bits := ifd.endian.Uint64(ifd.appblock[ifd.offset+offset:])
+		float := math.Float64frombits(bits)
+		return float, nil
+	case cURATIONAL:
+		numerator := ifd.endian.Uint32(ifd.appblock[ifd.offset+offset:])
+		denominator := ifd.endian.Uint32(ifd.appblock[ifd.offset+offset+4:])
+		return float64(numerator) / float64(denominator), nil
+	case cSRATIONAL:
+		numerator := (ifd.endian.Uint32(ifd.appblock[ifd.offset+offset:]))
+		denominator := (ifd.endian.Uint32(ifd.appblock[ifd.offset+offset+4:]))
+		return float64(numerator) / float64(denominator), nil
+	}
+	return int(0), &exifError{"Reading EXIF tag value from offset failed"}
+}
+
+func (ifd tExifIFD) ReadValue(tag tExifTag) (interface{}, error) {
+	switch tag.TypeID() {
+	case cUBYTE:
+		return uint8(tag.valueOrOffset()), nil
+	case cUSHORT:
+		return uint16(tag.valueOrOffset()), nil
+	case cULONG:
+		return uint32(tag.valueOrOffset()), nil
+	case cSBYTE:
+		return int8(tag.valueOrOffset()), nil
+	case cSSHORT:
+		return int16(tag.valueOrOffset()), nil
+	case cSLONG:
+		return int32(tag.valueOrOffset()), nil
+	case cFLOAT32:
+		return tag.valueAsFloat32(), nil
+	case cFLOAT64:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID())
+	case cURATIONAL:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID())
+	case cSRATIONAL:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID())
+	}
+	return int(0), &exifError{"Reading EXIF tag value failed"}
+}
 
 const (
 	cINTEL    = 0x4949
 	cMOTOROLA = 0x4D4D
 )
 
-type tExifTagType uint16
+const (
+	cIFDZERO    uint16 = 0x0000
+	cIFDEXIF    uint16 = 0x8769
+	cIFDGPS     uint16 = 0x8825
+	cIFDINTEROP uint16 = 0xa005
+)
 
 const (
-	cIFD0TT tExifTagType = 0xA005
-	cEXIFTT tExifTagType = 0x8769
-	cGPSTT  tExifTagType = 0x8825
+	ExifTagImageWidth                  uint16 = 0x100
+	ExifTagImageHeight                 uint16 = 0x101
+	ExifTagBitsPerSample               uint16 = 0x102
+	ExifTagCompression                 uint16 = 0x103
+	ExifTagPhotometricInterpretation   uint16 = 0x106
+	ExifTagImageDescription            uint16 = 0x10E
+	ExifTagMake                        uint16 = 0x10F
+	ExifTagModel                       uint16 = 0x110
+	ExifTagStripOffsets                uint16 = 0x111
+	ExifTagOrientation                 uint16 = 0x112
+	ExifTagSamplesPerPixel             uint16 = 0x115
+	ExifTagRowsPerStrip                uint16 = 0x116
+	ExifTagStripByteCounts             uint16 = 0x117
+	ExifTagXResolution                 uint16 = 0x11A
+	ExifTagYResolution                 uint16 = 0x11B
+	ExifTagPlanarConfiguration         uint16 = 0x11C
+	ExifTagResolutionUnit              uint16 = 0x128
+	ExifTagTransferFunction            uint16 = 0x12D
+	ExifTagSoftware                    uint16 = 0x131
+	ExifTagDateTime                    uint16 = 0x132
+	ExifTagArtist                      uint16 = 0x13B
+	ExifTagWhitePoint                  uint16 = 0x13E
+	ExifTagPrimaryChromaticities       uint16 = 0x13F
+	ExifTagJPEGInterchangeFormat       uint16 = 0x201
+	ExifTagJPEGInterchangeFormatLength uint16 = 0x202
+	ExifTagYCbCrCoefficients           uint16 = 0x211
+	ExifTagYCbCrSubSampling            uint16 = 0x212
+	ExifTagYCbCrPositioning            uint16 = 0x213
+	ExifTagReferenceBlackWhite         uint16 = 0x214
+	ExifTagCopyright                   uint16 = 0x8298
+
+	ExifTagExposureTime              uint16 = 0x829A
+	ExifTagFNumber                   uint16 = 0x829D
+	ExifTagExposureProgram           uint16 = 0x8822
+	ExifTagSpectralSensitivity       uint16 = 0x8824
+	ExifTagPhotographicSensitivity   uint16 = 0x8827
+	ExifTagOECF                      uint16 = 0x8828
+	ExifTagSensitivityType           uint16 = 0x8830
+	ExifTagStandardOutputSensitivity uint16 = 0x8831
+	ExifTagRecommendedExposureIndex  uint16 = 0x8832
+	ExifTagISOSpeed                  uint16 = 0x8833
+	ExifTagISOSpeedLatitudeyyy       uint16 = 0x8834
+	ExifTagISOSpeedLatitudezzz       uint16 = 0x8835
+	ExifTagExifVersion               uint16 = 0x9000
+	ExifTagDateTimeOriginal          uint16 = 0x9003
+	ExifTagDateTimeDigitized         uint16 = 0x9004
+	ExifTagComponentsConfiguration   uint16 = 0x9101
+	ExifTagCompressedBitsPerPixel    uint16 = 0x9102
+	ExifTagShutterSpeedValue         uint16 = 0x9201
+	ExifTagApertureValue             uint16 = 0x9202
+	ExifTagBrightnessValue           uint16 = 0x9203
+	ExifTagExposureBiasValue         uint16 = 0x9204
+	ExifTagMaxApertureValue          uint16 = 0x9205
+	ExifTagSubjectDistance           uint16 = 0x9206
+	ExifTagMeteringMode              uint16 = 0x9207
+	ExifTagLightSource               uint16 = 0x9208
+	ExifTagFlash                     uint16 = 0x9209
+	ExifTagFocalLength               uint16 = 0x920A
+	ExifTagSubjectArea               uint16 = 0x9214
+	ExifTagMakerNote                 uint16 = 0x927C
+	ExifTagUserComment               uint16 = 0x9286
+	ExifTagSubsecTime                uint16 = 0x9290
+	ExifTagSubsecTimeOriginal        uint16 = 0x9291
+	ExifTagSubsecTimeDigitized       uint16 = 0x9292
+	ExifTagFlashpixVersion           uint16 = 0xA000
+	ExifTagColorSpace                uint16 = 0xA001
+	ExifTagPixelXDimension           uint16 = 0xA002
+	ExifTagPixelYDimension           uint16 = 0xA003
+	ExifTagRelatedSoundFile          uint16 = 0xA004
+	ExifTagFlashEnergy               uint16 = 0xA20B
+	ExifTagSpatialFrequencyResponse  uint16 = 0xA20C
+	ExifTagFocalPlaneXResolution     uint16 = 0xA20E
+	ExifTagFocalPlaneYResolution     uint16 = 0xA20F
+	ExifTagFocalPlaneResolutionUnit  uint16 = 0xA210
+	ExifTagSubjectLocation           uint16 = 0xA214
+	ExifTagExposureIndex             uint16 = 0xA215
+	ExifTagSensingMethod             uint16 = 0xA217
+	ExifTagFileSource                uint16 = 0xA300
+	ExifTagSceneType                 uint16 = 0xA301
+	ExifTagCFAPattern                uint16 = 0xA302
+	ExifTagCustomRendered            uint16 = 0xA401
+	ExifTagExposureMode              uint16 = 0xA402
+	ExifTagWhiteBalance              uint16 = 0xA403
+	ExifTagDigitalZoomRatio          uint16 = 0xA404
+	ExifTagFocalLengthIn35mmFilm     uint16 = 0xA405
+	ExifTagSceneCaptureType          uint16 = 0xA406
+	ExifTagGainControl               uint16 = 0xA407
+	ExifTagContrast                  uint16 = 0xA408
+	ExifTagSaturation                uint16 = 0xA409
+	ExifTagSharpness                 uint16 = 0xA40A
+	ExifTagDeviceSettingDescription  uint16 = 0xA40B
+	ExifTagSubjectDistanceRange      uint16 = 0xA40C
+	ExifTagImageUniqueID             uint16 = 0xA420
+	ExifTagCameraOwnerName           uint16 = 0xA430
+	ExifTagBodySerialNumber          uint16 = 0xA431
+	ExifTagLensSpecification         uint16 = 0xA432
+	ExifTagLensMake                  uint16 = 0xA433
+	ExifTagLensModel                 uint16 = 0xA434
+	ExifTagLensSerialNumber          uint16 = 0xA435
+
+	ExifGpsTagGPSVersionID         uint16 = 0x0
+	ExifGpsTagGPSLatitudeRef       uint16 = 0x1
+	ExifGpsTagGPSLatitude          uint16 = 0x2
+	ExifGpsTagGPSLongitudeRef      uint16 = 0x3
+	ExifGpsTagGPSLongitude         uint16 = 0x4
+	ExifGpsTagGPSAltitudeRef       uint16 = 0x5
+	ExifGpsTagGPSAltitude          uint16 = 0x6
+	ExifGpsTagGPSTimestamp         uint16 = 0x7
+	ExifGpsTagGPSSatellites        uint16 = 0x8
+	ExifGpsTagGPSStatus            uint16 = 0x9
+	ExifGpsTagGPSMeasureMode       uint16 = 0xA
+	ExifGpsTagGPSDOP               uint16 = 0xB
+	ExifGpsTagGPSSpeedRef          uint16 = 0xC
+	ExifGpsTagGPSSpeed             uint16 = 0xD
+	ExifGpsTagGPSTrackRef          uint16 = 0xE
+	ExifGpsTagGPSTrack             uint16 = 0xF
+	ExifGpsTagGPSImgDirectionRef   uint16 = 0x10
+	ExifGpsTagGPSImgDirection      uint16 = 0x11
+	ExifGpsTagGPSMapDatum          uint16 = 0x12
+	ExifGpsTagGPSDestLatitudeRef   uint16 = 0x13
+	ExifGpsTagGPSDestLatitude      uint16 = 0x14
+	ExifGpsTagGPSDestLongitudeRef  uint16 = 0x15
+	ExifGpsTagGPSDestLongitude     uint16 = 0x16
+	ExifGpsTagGPSDestBearingRef    uint16 = 0x17
+	ExifGpsTagGPSDestBearing       uint16 = 0x18
+	ExifGpsTagGPSDestDistanceRef   uint16 = 0x19
+	ExifGpsTagGPSDestDistance      uint16 = 0x1A
+	ExifGpsTagGPSProcessingMethod  uint16 = 0x1B
+	ExifGpsTagGPSAreaInformation   uint16 = 0x1C
+	ExifGpsTagGPSDateStamp         uint16 = 0x1D
+	ExifGpsTagGPSDifferential      uint16 = 0x1E
+	ExifGpsTagGPSHPositioningError uint16 = 0x1F
+
+	ExifXpTagXPTitle    uint16 = 0x9c9b
+	ExifXpTagXPComment  uint16 = 0x9c9c
+	ExifXpTagXPAuthor   uint16 = 0x9c9d
+	ExifXpTagXPKeywords uint16 = 0x9c9e
+	ExifXpTagXPSubject  uint16 = 0x9c9f
 )
 
 type tExifTagDescr struct {
-	tag  tExifTagType
+	tag  uint16
 	id   uint16
 	name string
 }
 
-var aExifTagDescr = []tExifTagDescr{
-	// primary tags
-	{tag: cIFD0TT, name: "ImageWidth", id: 0x100},
-	{tag: cIFD0TT, name: "ImageLength", id: 0x101},
-	{tag: cIFD0TT, name: "BitsPerSample", id: 0x102},
-	{tag: cIFD0TT, name: "Compression", id: 0x103},
-	{tag: cIFD0TT, name: "PhotometricInterpretation", id: 0x106},
-	{tag: cIFD0TT, name: "ImageDescription", id: 0x10E},
-	{tag: cIFD0TT, name: "Make", id: 0x10F},
-	{tag: cIFD0TT, name: "Model", id: 0x110},
-	{tag: cIFD0TT, name: "StripOffsets", id: 0x111},
-	{tag: cIFD0TT, name: "Orientation", id: 0x112},
-	{tag: cIFD0TT, name: "SamplesPerPixel", id: 0x115},
-	{tag: cIFD0TT, name: "RowsPerStrip", id: 0x116},
-	{tag: cIFD0TT, name: "StripByteCounts", id: 0x117},
-	{tag: cIFD0TT, name: "XResolution", id: 0x11A},
-	{tag: cIFD0TT, name: "YResolution", id: 0x11B},
-	{tag: cIFD0TT, name: "PlanarConfiguration", id: 0x11C},
-	{tag: cIFD0TT, name: "ResolutionUnit", id: 0x128},
-	{tag: cIFD0TT, name: "TransferFunction", id: 0x12D},
-	{tag: cIFD0TT, name: "Software", id: 0x131},
-	{tag: cIFD0TT, name: "DateTime", id: 0x132},
-	{tag: cIFD0TT, name: "Artist", id: 0x13B},
-	{tag: cIFD0TT, name: "WhitePoint", id: 0x13E},
-	{tag: cIFD0TT, name: "PrimaryChromaticities", id: 0x13F},
-	{tag: cIFD0TT, name: "JPEGInterchangeFormat", id: 0x201},
-	{tag: cIFD0TT, name: "JPEGInterchangeFormatLength", id: 0x202},
-	{tag: cIFD0TT, name: "YCbCrCoefficients", id: 0x211},
-	{tag: cIFD0TT, name: "YCbCrSubSampling", id: 0x212},
-	{tag: cIFD0TT, name: "YCbCrPositioning", id: 0x213},
-	{tag: cIFD0TT, name: "ReferenceBlackWhite", id: 0x214},
-	{tag: cIFD0TT, name: "Copyright", id: 0x8298},
+var aExifTagDescr = map[uint16]tExifTagDescr{
+	// Primary tags
+	ExifTagImageWidth:                  {tag: cIFDZERO, name: "ImageWidth", id: ExifTagImageWidth},
+	ExifTagImageHeight:                 {tag: cIFDZERO, name: "ImageLength", id: ExifTagImageHeight},
+	ExifTagBitsPerSample:               {tag: cIFDZERO, name: "BitsPerSample", id: ExifTagBitsPerSample},
+	ExifTagCompression:                 {tag: cIFDZERO, name: "Compression", id: ExifTagCompression},
+	ExifTagPhotometricInterpretation:   {tag: cIFDZERO, name: "PhotometricInterpretation", id: ExifTagPhotometricInterpretation},
+	ExifTagImageDescription:            {tag: cIFDZERO, name: "ImageDescription", id: ExifTagImageDescription},
+	ExifTagMake:                        {tag: cIFDZERO, name: "Make", id: ExifTagMake},
+	ExifTagModel:                       {tag: cIFDZERO, name: "Model", id: ExifTagModel},
+	ExifTagStripOffsets:                {tag: cIFDZERO, name: "StripOffsets", id: ExifTagStripOffsets},
+	ExifTagOrientation:                 {tag: cIFDZERO, name: "Orientation", id: ExifTagOrientation},
+	ExifTagSamplesPerPixel:             {tag: cIFDZERO, name: "SamplesPerPixel", id: ExifTagSamplesPerPixel},
+	ExifTagRowsPerStrip:                {tag: cIFDZERO, name: "RowsPerStrip", id: ExifTagRowsPerStrip},
+	ExifTagStripByteCounts:             {tag: cIFDZERO, name: "StripByteCounts", id: ExifTagStripByteCounts},
+	ExifTagXResolution:                 {tag: cIFDZERO, name: "XResolution", id: ExifTagXResolution},
+	ExifTagYResolution:                 {tag: cIFDZERO, name: "YResolution", id: ExifTagYResolution},
+	ExifTagPlanarConfiguration:         {tag: cIFDZERO, name: "PlanarConfiguration", id: ExifTagPlanarConfiguration},
+	ExifTagResolutionUnit:              {tag: cIFDZERO, name: "ResolutionUnit", id: ExifTagResolutionUnit},
+	ExifTagTransferFunction:            {tag: cIFDZERO, name: "TransferFunction", id: ExifTagTransferFunction},
+	ExifTagSoftware:                    {tag: cIFDZERO, name: "Software", id: ExifTagSoftware},
+	ExifTagDateTime:                    {tag: cIFDZERO, name: "DateTime", id: ExifTagDateTime},
+	ExifTagArtist:                      {tag: cIFDZERO, name: "Artist", id: ExifTagArtist},
+	ExifTagWhitePoint:                  {tag: cIFDZERO, name: "WhitePoint", id: ExifTagWhitePoint},
+	ExifTagPrimaryChromaticities:       {tag: cIFDZERO, name: "PrimaryChromaticities", id: ExifTagPrimaryChromaticities},
+	ExifTagJPEGInterchangeFormat:       {tag: cIFDZERO, name: "JPEGInterchangeFormat", id: ExifTagJPEGInterchangeFormat},
+	ExifTagJPEGInterchangeFormatLength: {tag: cIFDZERO, name: "JPEGInterchangeFormatLength", id: ExifTagJPEGInterchangeFormatLength},
+	ExifTagYCbCrCoefficients:           {tag: cIFDZERO, name: "YCbCrCoefficients", id: ExifTagYCbCrCoefficients},
+	ExifTagYCbCrSubSampling:            {tag: cIFDZERO, name: "YCbCrSubSampling", id: ExifTagYCbCrSubSampling},
+	ExifTagYCbCrPositioning:            {tag: cIFDZERO, name: "YCbCrPositioning", id: ExifTagYCbCrPositioning},
+	ExifTagReferenceBlackWhite:         {tag: cIFDZERO, name: "ReferenceBlackWhite", id: ExifTagReferenceBlackWhite},
+	ExifTagCopyright:                   {tag: cIFDZERO, name: "Copyright", id: ExifTagCopyright},
 
 	// EXIF tags
-	{tag: cEXIFTT, name: "ExposureTime", id: 0x829A},
-	{tag: cEXIFTT, name: "FNumber", id: 0x829D},
-	{tag: cEXIFTT, name: "ExposureProgram", id: 0x8822},
-	{tag: cEXIFTT, name: "SpectralSensitivity", id: 0x8824},
-	{tag: cEXIFTT, name: "PhotographicSensitivity", id: 0x8827},
-	{tag: cEXIFTT, name: "OECF", id: 0x8828},
-	{tag: cEXIFTT, name: "SensitivityType", id: 0x8830},
-	{tag: cEXIFTT, name: "StandardOutputSensitivity", id: 0x8831},
-	{tag: cEXIFTT, name: "RecommendedExposureIndex", id: 0x8832},
-	{tag: cEXIFTT, name: "ISOSpeed", id: 0x8833},
-	{tag: cEXIFTT, name: "ISOSpeedLatitudeyyy", id: 0x8834},
-	{tag: cEXIFTT, name: "ISOSpeedLatitudezzz", id: 0x8835},
-
-	{tag: cEXIFTT, name: "ExifVersion", id: 0x9000},
-	{tag: cEXIFTT, name: "DateTimeOriginal", id: 0x9003},
-	{tag: cEXIFTT, name: "DateTimeDigitized", id: 0x9004},
-	{tag: cEXIFTT, name: "ComponentsConfiguration", id: 0x9101},
-	{tag: cEXIFTT, name: "CompressedBitsPerPixel", id: 0x9102},
-	{tag: cEXIFTT, name: "ShutterSpeedValue", id: 0x9201},
-	{tag: cEXIFTT, name: "ApertureValue", id: 0x9202},
-	{tag: cEXIFTT, name: "BrightnessValue", id: 0x9203},
-	{tag: cEXIFTT, name: "ExposureBiasValue", id: 0x9204},
-	{tag: cEXIFTT, name: "MaxApertureValue", id: 0x9205},
-	{tag: cEXIFTT, name: "SubjectDistance", id: 0x9206},
-	{tag: cEXIFTT, name: "MeteringMode", id: 0x9207},
-	{tag: cEXIFTT, name: "LightSource", id: 0x9208},
-	{tag: cEXIFTT, name: "Flash", id: 0x9209},
-	{tag: cEXIFTT, name: "FocalLength", id: 0x920A},
-	{tag: cEXIFTT, name: "SubjectArea", id: 0x9214},
-	{tag: cEXIFTT, name: "MakerNote", id: 0x927C},
-	{tag: cEXIFTT, name: "UserComment", id: 0x9286},
-	{tag: cEXIFTT, name: "SubsecTime", id: 0x9290},
-	{tag: cEXIFTT, name: "SubsecTimeOriginal", id: 0x9291},
-	{tag: cEXIFTT, name: "SubsecTimeDigitized", id: 0x9292},
-	{tag: cEXIFTT, name: "FlashpixVersion", id: 0xA000},
-	{tag: cEXIFTT, name: "ColorSpace", id: 0xA001},
-	{tag: cEXIFTT, name: "PixelXDimension", id: 0xA002},
-	{tag: cEXIFTT, name: "PixelYDimension", id: 0xA003},
-	{tag: cEXIFTT, name: "RelatedSoundFile", id: 0xA004},
-	{tag: cEXIFTT, name: "FlashEnergy", id: 0xA20B},
-	{tag: cEXIFTT, name: "SpatialFrequencyResponse", id: 0xA20C},
-	{tag: cEXIFTT, name: "FocalPlaneXResolution", id: 0xA20E},
-	{tag: cEXIFTT, name: "FocalPlaneYResolution", id: 0xA20F},
-	{tag: cEXIFTT, name: "FocalPlaneResolutionUnit", id: 0xA210},
-	{tag: cEXIFTT, name: "SubjectLocation", id: 0xA214},
-	{tag: cEXIFTT, name: "ExposureIndex", id: 0xA215},
-	{tag: cEXIFTT, name: "SensingMethod", id: 0xA217},
-	{tag: cEXIFTT, name: "FileSource", id: 0xA300},
-	{tag: cEXIFTT, name: "SceneType", id: 0xA301},
-	{tag: cEXIFTT, name: "CFAPattern", id: 0xA302},
-	{tag: cEXIFTT, name: "CustomRendered", id: 0xA401},
-	{tag: cEXIFTT, name: "ExposureMode", id: 0xA402},
-	{tag: cEXIFTT, name: "WhiteBalance", id: 0xA403},
-	{tag: cEXIFTT, name: "DigitalZoomRatio", id: 0xA404},
-	{tag: cEXIFTT, name: "FocalLengthIn35mmFilm", id: 0xA405},
-	{tag: cEXIFTT, name: "SceneCaptureType", id: 0xA406},
-	{tag: cEXIFTT, name: "GainControl", id: 0xA407},
-	{tag: cEXIFTT, name: "Contrast", id: 0xA408},
-	{tag: cEXIFTT, name: "Saturation", id: 0xA409},
-	{tag: cEXIFTT, name: "Sharpness", id: 0xA40A},
-	{tag: cEXIFTT, name: "DeviceSettingDescription", id: 0xA40B},
-	{tag: cEXIFTT, name: "SubjectDistanceRange", id: 0xA40C},
-	{tag: cEXIFTT, name: "ImageUniqueID", id: 0xA420},
-	{tag: cEXIFTT, name: "CameraOwnerName", id: 0xA430},
-	{tag: cEXIFTT, name: "BodySerialNumber", id: 0xA431},
-	{tag: cEXIFTT, name: "LensSpecification", id: 0xA432},
-	{tag: cEXIFTT, name: "LensMake", id: 0xA433},
-	{tag: cEXIFTT, name: "LensModel", id: 0xA434},
-	{tag: cEXIFTT, name: "LensSerialNumber", id: 0xA435},
+	ExifTagExposureTime:              {tag: cIFDEXIF, name: "ExposureTime", id: ExifTagExposureTime},
+	ExifTagFNumber:                   {tag: cIFDEXIF, name: "FNumber", id: ExifTagFNumber},
+	ExifTagExposureProgram:           {tag: cIFDEXIF, name: "ExposureProgram", id: ExifTagExposureProgram},
+	ExifTagSpectralSensitivity:       {tag: cIFDEXIF, name: "SpectralSensitivity", id: ExifTagSpectralSensitivity},
+	ExifTagPhotographicSensitivity:   {tag: cIFDEXIF, name: "PhotographicSensitivity", id: ExifTagPhotographicSensitivity},
+	ExifTagOECF:                      {tag: cIFDEXIF, name: "OECF", id: ExifTagOECF},
+	ExifTagSensitivityType:           {tag: cIFDEXIF, name: "SensitivityType", id: ExifTagSensitivityType},
+	ExifTagStandardOutputSensitivity: {tag: cIFDEXIF, name: "StandardOutputSensitivity", id: ExifTagStandardOutputSensitivity},
+	ExifTagRecommendedExposureIndex:  {tag: cIFDEXIF, name: "RecommendedExposureIndex", id: ExifTagRecommendedExposureIndex},
+	ExifTagISOSpeed:                  {tag: cIFDEXIF, name: "ISOSpeed", id: ExifTagISOSpeed},
+	ExifTagISOSpeedLatitudeyyy:       {tag: cIFDEXIF, name: "ISOSpeedLatitudeyyy", id: ExifTagISOSpeedLatitudeyyy},
+	ExifTagISOSpeedLatitudezzz:       {tag: cIFDEXIF, name: "ISOSpeedLatitudezzz", id: ExifTagISOSpeedLatitudezzz},
+	ExifTagExifVersion:               {tag: cIFDEXIF, name: "ExifVersion", id: ExifTagExifVersion},
+	ExifTagDateTimeOriginal:          {tag: cIFDEXIF, name: "DateTimeOriginal", id: ExifTagDateTimeOriginal},
+	ExifTagDateTimeDigitized:         {tag: cIFDEXIF, name: "DateTimeDigitized", id: ExifTagDateTimeDigitized},
+	ExifTagComponentsConfiguration:   {tag: cIFDEXIF, name: "ComponentsConfiguration", id: ExifTagComponentsConfiguration},
+	ExifTagCompressedBitsPerPixel:    {tag: cIFDEXIF, name: "CompressedBitsPerPixel", id: ExifTagCompressedBitsPerPixel},
+	ExifTagShutterSpeedValue:         {tag: cIFDEXIF, name: "ShutterSpeedValue", id: ExifTagShutterSpeedValue},
+	ExifTagApertureValue:             {tag: cIFDEXIF, name: "ApertureValue", id: ExifTagApertureValue},
+	ExifTagBrightnessValue:           {tag: cIFDEXIF, name: "BrightnessValue", id: ExifTagBrightnessValue},
+	ExifTagExposureBiasValue:         {tag: cIFDEXIF, name: "ExposureBiasValue", id: ExifTagExposureBiasValue},
+	ExifTagMaxApertureValue:          {tag: cIFDEXIF, name: "MaxApertureValue", id: ExifTagMaxApertureValue},
+	ExifTagSubjectDistance:           {tag: cIFDEXIF, name: "SubjectDistance", id: ExifTagSubjectDistance},
+	ExifTagMeteringMode:              {tag: cIFDEXIF, name: "MeteringMode", id: ExifTagMeteringMode},
+	ExifTagLightSource:               {tag: cIFDEXIF, name: "LightSource", id: ExifTagLightSource},
+	ExifTagFlash:                     {tag: cIFDEXIF, name: "Flash", id: ExifTagFlash},
+	ExifTagFocalLength:               {tag: cIFDEXIF, name: "FocalLength", id: ExifTagFocalLength},
+	ExifTagSubjectArea:               {tag: cIFDEXIF, name: "SubjectArea", id: ExifTagSubjectArea},
+	ExifTagMakerNote:                 {tag: cIFDEXIF, name: "MakerNote", id: ExifTagMakerNote},
+	ExifTagUserComment:               {tag: cIFDEXIF, name: "UserComment", id: ExifTagUserComment},
+	ExifTagSubsecTime:                {tag: cIFDEXIF, name: "SubsecTime", id: ExifTagSubsecTime},
+	ExifTagSubsecTimeOriginal:        {tag: cIFDEXIF, name: "SubsecTimeOriginal", id: ExifTagSubsecTimeOriginal},
+	ExifTagSubsecTimeDigitized:       {tag: cIFDEXIF, name: "SubsecTimeDigitized", id: ExifTagSubsecTimeDigitized},
+	ExifTagFlashpixVersion:           {tag: cIFDEXIF, name: "FlashpixVersion", id: ExifTagFlashpixVersion},
+	ExifTagColorSpace:                {tag: cIFDEXIF, name: "ColorSpace", id: ExifTagColorSpace},
+	ExifTagPixelXDimension:           {tag: cIFDEXIF, name: "PixelXDimension", id: ExifTagPixelXDimension},
+	ExifTagPixelYDimension:           {tag: cIFDEXIF, name: "PixelYDimension", id: ExifTagPixelYDimension},
+	ExifTagRelatedSoundFile:          {tag: cIFDEXIF, name: "RelatedSoundFile", id: ExifTagRelatedSoundFile},
+	ExifTagFlashEnergy:               {tag: cIFDEXIF, name: "FlashEnergy", id: ExifTagFlashEnergy},
+	ExifTagSpatialFrequencyResponse:  {tag: cIFDEXIF, name: "SpatialFrequencyResponse", id: ExifTagSpatialFrequencyResponse},
+	ExifTagFocalPlaneXResolution:     {tag: cIFDEXIF, name: "FocalPlaneXResolution", id: ExifTagFocalPlaneXResolution},
+	ExifTagFocalPlaneYResolution:     {tag: cIFDEXIF, name: "FocalPlaneYResolution", id: ExifTagFocalPlaneYResolution},
+	ExifTagFocalPlaneResolutionUnit:  {tag: cIFDEXIF, name: "FocalPlaneResolutionUnit", id: ExifTagFocalPlaneResolutionUnit},
+	ExifTagSubjectLocation:           {tag: cIFDEXIF, name: "SubjectLocation", id: ExifTagSubjectLocation},
+	ExifTagExposureIndex:             {tag: cIFDEXIF, name: "ExposureIndex", id: ExifTagExposureIndex},
+	ExifTagSensingMethod:             {tag: cIFDEXIF, name: "SensingMethod", id: ExifTagSensingMethod},
+	ExifTagFileSource:                {tag: cIFDEXIF, name: "FileSource", id: ExifTagFileSource},
+	ExifTagSceneType:                 {tag: cIFDEXIF, name: "SceneType", id: ExifTagSceneType},
+	ExifTagCFAPattern:                {tag: cIFDEXIF, name: "CFAPattern", id: ExifTagCFAPattern},
+	ExifTagCustomRendered:            {tag: cIFDEXIF, name: "CustomRendered", id: ExifTagCustomRendered},
+	ExifTagExposureMode:              {tag: cIFDEXIF, name: "ExposureMode", id: ExifTagExposureMode},
+	ExifTagWhiteBalance:              {tag: cIFDEXIF, name: "WhiteBalance", id: ExifTagWhiteBalance},
+	ExifTagDigitalZoomRatio:          {tag: cIFDEXIF, name: "DigitalZoomRatio", id: ExifTagDigitalZoomRatio},
+	ExifTagFocalLengthIn35mmFilm:     {tag: cIFDEXIF, name: "FocalLengthIn35mmFilm", id: ExifTagFocalLengthIn35mmFilm},
+	ExifTagSceneCaptureType:          {tag: cIFDEXIF, name: "SceneCaptureType", id: ExifTagSceneCaptureType},
+	ExifTagGainControl:               {tag: cIFDEXIF, name: "GainControl", id: ExifTagGainControl},
+	ExifTagContrast:                  {tag: cIFDEXIF, name: "Contrast", id: ExifTagContrast},
+	ExifTagSaturation:                {tag: cIFDEXIF, name: "Saturation", id: ExifTagSaturation},
+	ExifTagSharpness:                 {tag: cIFDEXIF, name: "Sharpness", id: ExifTagSharpness},
+	ExifTagDeviceSettingDescription:  {tag: cIFDEXIF, name: "DeviceSettingDescription", id: ExifTagDeviceSettingDescription},
+	ExifTagSubjectDistanceRange:      {tag: cIFDEXIF, name: "SubjectDistanceRange", id: ExifTagSubjectDistanceRange},
+	ExifTagImageUniqueID:             {tag: cIFDEXIF, name: "ImageUniqueID", id: ExifTagImageUniqueID},
+	ExifTagCameraOwnerName:           {tag: cIFDEXIF, name: "CameraOwnerName", id: ExifTagCameraOwnerName},
+	ExifTagBodySerialNumber:          {tag: cIFDEXIF, name: "BodySerialNumber", id: ExifTagBodySerialNumber},
+	ExifTagLensSpecification:         {tag: cIFDEXIF, name: "LensSpecification", id: ExifTagLensSpecification},
+	ExifTagLensMake:                  {tag: cIFDEXIF, name: "LensMake", id: ExifTagLensMake},
+	ExifTagLensModel:                 {tag: cIFDEXIF, name: "LensModel", id: ExifTagLensModel},
+	ExifTagLensSerialNumber:          {tag: cIFDEXIF, name: "LensSerialNumber", id: ExifTagLensSerialNumber},
 
 	// GPS tags
-	{tag: cGPSTT, name: "GPSVersionID", id: 0x0},
-	{tag: cGPSTT, name: "GPSLatitudeRef", id: 0x1},
-	{tag: cGPSTT, name: "GPSLatitude", id: 0x2},
-	{tag: cGPSTT, name: "GPSLongitudeRef", id: 0x3},
-	{tag: cGPSTT, name: "GPSLongitude", id: 0x4},
-	{tag: cGPSTT, name: "GPSAltitudeRef", id: 0x5},
-	{tag: cGPSTT, name: "GPSAltitude", id: 0x6},
-	{tag: cGPSTT, name: "GPSTimestamp", id: 0x7},
-	{tag: cGPSTT, name: "GPSSatellites", id: 0x8},
-	{tag: cGPSTT, name: "GPSStatus", id: 0x9},
-	{tag: cGPSTT, name: "GPSMeasureMode", id: 0xA},
-	{tag: cGPSTT, name: "GPSDOP", id: 0xB},
-	{tag: cGPSTT, name: "GPSSpeedRef", id: 0xC},
-	{tag: cGPSTT, name: "GPSSpeed", id: 0xD},
-	{tag: cGPSTT, name: "GPSTrackRef", id: 0xE},
-	{tag: cGPSTT, name: "GPSTrack", id: 0xF},
-	{tag: cGPSTT, name: "GPSImgDirectionRef", id: 0x10},
-	{tag: cGPSTT, name: "GPSImgDirection", id: 0x11},
-	{tag: cGPSTT, name: "GPSMapDatum", id: 0x12},
-	{tag: cGPSTT, name: "GPSDestLatitudeRef", id: 0x13},
-	{tag: cGPSTT, name: "GPSDestLatitude", id: 0x14},
-	{tag: cGPSTT, name: "GPSDestLongitudeRef", id: 0x15},
-	{tag: cGPSTT, name: "GPSDestLongitude", id: 0x16},
-	{tag: cGPSTT, name: "GPSDestBearingRef", id: 0x17},
-	{tag: cGPSTT, name: "GPSDestBearing", id: 0x18},
-	{tag: cGPSTT, name: "GPSDestDistanceRef", id: 0x19},
-	{tag: cGPSTT, name: "GPSDestDistance", id: 0x1A},
-	{tag: cGPSTT, name: "GPSProcessingMethod", id: 0x1B},
-	{tag: cGPSTT, name: "GPSAreaInformation", id: 0x1C},
-	{tag: cGPSTT, name: "GPSDateStamp", id: 0x1D},
-	{tag: cGPSTT, name: "GPSDifferential", id: 0x1E},
-	{tag: cGPSTT, name: "GPSHPositioningError", id: 0x1F},
+	ExifGpsTagGPSVersionID:         {tag: cIFDGPS, name: "GPSVersionID", id: ExifGpsTagGPSVersionID},
+	ExifGpsTagGPSLatitudeRef:       {tag: cIFDGPS, name: "GPSLatitudeRef", id: ExifGpsTagGPSLatitudeRef},
+	ExifGpsTagGPSLatitude:          {tag: cIFDGPS, name: "GPSLatitude", id: ExifGpsTagGPSLatitude},
+	ExifGpsTagGPSLongitudeRef:      {tag: cIFDGPS, name: "GPSLongitudeRef", id: ExifGpsTagGPSLongitudeRef},
+	ExifGpsTagGPSLongitude:         {tag: cIFDGPS, name: "GPSLongitude", id: ExifGpsTagGPSLongitude},
+	ExifGpsTagGPSAltitudeRef:       {tag: cIFDGPS, name: "GPSAltitudeRef", id: ExifGpsTagGPSAltitudeRef},
+	ExifGpsTagGPSAltitude:          {tag: cIFDGPS, name: "GPSAltitude", id: ExifGpsTagGPSAltitude},
+	ExifGpsTagGPSTimestamp:         {tag: cIFDGPS, name: "GPSTimestamp", id: ExifGpsTagGPSTimestamp},
+	ExifGpsTagGPSSatellites:        {tag: cIFDGPS, name: "GPSSatellites", id: ExifGpsTagGPSSatellites},
+	ExifGpsTagGPSStatus:            {tag: cIFDGPS, name: "GPSStatus", id: ExifGpsTagGPSStatus},
+	ExifGpsTagGPSMeasureMode:       {tag: cIFDGPS, name: "GPSMeasureMode", id: ExifGpsTagGPSMeasureMode},
+	ExifGpsTagGPSDOP:               {tag: cIFDGPS, name: "GPSDOP", id: ExifGpsTagGPSDOP},
+	ExifGpsTagGPSSpeedRef:          {tag: cIFDGPS, name: "GPSSpeedRef", id: ExifGpsTagGPSSpeedRef},
+	ExifGpsTagGPSSpeed:             {tag: cIFDGPS, name: "GPSSpeed", id: ExifGpsTagGPSSpeed},
+	ExifGpsTagGPSTrackRef:          {tag: cIFDGPS, name: "GPSTrackRef", id: ExifGpsTagGPSTrackRef},
+	ExifGpsTagGPSTrack:             {tag: cIFDGPS, name: "GPSTrack", id: ExifGpsTagGPSTrack},
+	ExifGpsTagGPSImgDirectionRef:   {tag: cIFDGPS, name: "GPSImgDirectionRef", id: ExifGpsTagGPSImgDirectionRef},
+	ExifGpsTagGPSImgDirection:      {tag: cIFDGPS, name: "GPSImgDirection", id: ExifGpsTagGPSImgDirection},
+	ExifGpsTagGPSMapDatum:          {tag: cIFDGPS, name: "GPSMapDatum", id: ExifGpsTagGPSMapDatum},
+	ExifGpsTagGPSDestLatitudeRef:   {tag: cIFDGPS, name: "GPSDestLatitudeRef", id: ExifGpsTagGPSDestLatitudeRef},
+	ExifGpsTagGPSDestLatitude:      {tag: cIFDGPS, name: "GPSDestLatitude", id: ExifGpsTagGPSDestLatitude},
+	ExifGpsTagGPSDestLongitudeRef:  {tag: cIFDGPS, name: "GPSDestLongitudeRef", id: ExifGpsTagGPSDestLongitudeRef},
+	ExifGpsTagGPSDestLongitude:     {tag: cIFDGPS, name: "GPSDestLongitude", id: ExifGpsTagGPSDestLongitude},
+	ExifGpsTagGPSDestBearingRef:    {tag: cIFDGPS, name: "GPSDestBearingRef", id: ExifGpsTagGPSDestBearingRef},
+	ExifGpsTagGPSDestBearing:       {tag: cIFDGPS, name: "GPSDestBearing", id: ExifGpsTagGPSDestBearing},
+	ExifGpsTagGPSDestDistanceRef:   {tag: cIFDGPS, name: "GPSDestDistanceRef", id: ExifGpsTagGPSDestDistanceRef},
+	ExifGpsTagGPSDestDistance:      {tag: cIFDGPS, name: "GPSDestDistance", id: ExifGpsTagGPSDestDistance},
+	ExifGpsTagGPSProcessingMethod:  {tag: cIFDGPS, name: "GPSProcessingMethod", id: ExifGpsTagGPSProcessingMethod},
+	ExifGpsTagGPSAreaInformation:   {tag: cIFDGPS, name: "GPSAreaInformation", id: ExifGpsTagGPSAreaInformation},
+	ExifGpsTagGPSDateStamp:         {tag: cIFDGPS, name: "GPSDateStamp", id: ExifGpsTagGPSDateStamp},
+	ExifGpsTagGPSDifferential:      {tag: cIFDGPS, name: "GPSDifferential", id: ExifGpsTagGPSDifferential},
+	ExifGpsTagGPSHPositioningError: {tag: cIFDGPS, name: "GPSHPositioningError", id: ExifGpsTagGPSHPositioningError},
 
 	// Microsoft Windows metadata. Non-standard, but ubiquitous
-	{tag: cIFD0TT, name: "XPTitle", id: 0x9c9b},
-	{tag: cIFD0TT, name: "XPComment", id: 0x9c9c},
-	{tag: cIFD0TT, name: "XPAuthor", id: 0x9c9d},
-	{tag: cIFD0TT, name: "XPKeywords", id: 0x9c9e},
-	{tag: cIFD0TT, name: "XPSubject", id: 0x9c9f},
+	ExifXpTagXPTitle:    {tag: cIFDZERO, name: "XPTitle", id: ExifXpTagXPTitle},
+	ExifXpTagXPComment:  {tag: cIFDZERO, name: "XPComment", id: ExifXpTagXPComment},
+	ExifXpTagXPAuthor:   {tag: cIFDZERO, name: "XPAuthor", id: ExifXpTagXPAuthor},
+	ExifXpTagXPKeywords: {tag: cIFDZERO, name: "XPKeywords", id: ExifXpTagXPKeywords},
+	ExifXpTagXPSubject:  {tag: cIFDZERO, name: "XPSubject", id: ExifXpTagXPSubject},
 }
 
 const (
