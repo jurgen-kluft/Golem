@@ -5,6 +5,65 @@ import (
 	"math"
 )
 
+/*
+Exif APP1 segments are made up by an identifier, a TIFF header and a sequence of IFDs (Image File Directories) and subIFDs.
+The high level IFDs are only two (IFD0, for photographic parameters, and IFD1 for thumbnail parameters); they can be
+followed by thumbnail data. The structure is as follows:
+
+    [Record name]    [size]   [description]
+    ---------------------------------------
+    Identifier       6 bytes   ("Exif\000\000" = 0x457869660000), not stored
+    Endianness       2 bytes   'II' (little-endian) or 'MM' (big-endian)
+    Signature        2 bytes   a fixed value = 42
+    IFD0_Pointer     4 bytes   offset of 0th IFD (usually 8), not stored
+    IFD0                ...    main image IFD
+    IFD0@SubIFD         ...    Exif private tags (optional, linked by IFD0)
+    IFD0@SubIFD@Interop ...    Interoperability IFD (optional,linked by SubIFD)
+    IFD0@GPS            ...    GPS IFD (optional, linked by IFD0)
+    APP1@IFD1           ...    thumbnail IFD (optional, pointed to by IFD0)
+    ThumbnailData       ...    Thumbnail image (optional, 0xffd8.....ffd9)
+
+So, each Exif APP1 segment starts with the identifier string "Exif\000\000"; this avoids a conflict with other applications
+using APP1, for instance XMP data. The three following fields (Endianness, Signature and IFD0_Pointer) constitute the so
+called TIFF header.
+The offset of the 0th IFD in the TIFF header, as well as IFD links in the following IFDs, is given with respect to the
+beginning of the TIFF header (i.e. the address of the 'MM' or 'II' pair). This means that if the 0th IFD begins (as usual)
+immediately after the end of the TIFF header, the offset value is 8. An Exif segment is the only part of a JPEG file whose
+endianness is not fixed to big-endian.
+
+If the thumbnail is present it is located after the 1st IFD. There are 3 possible formats: JPEG (only this is compressed),
+RGB TIFF, and YCbCr TIFF. It seems that JPEG and 160x120 pixels are recommended for Exif ver. 2.1 or higher (mandatory for DCF files).
+Since the segment size for a segment is recorded in 2 bytes, thumbnails are limited to slightly less than 64KB.
+
+Each IFD block is a structured sequence of records, called, in the Exif jargon, Interoperability arrays.
+The beginning of the 0th IFD is given by the 'IFD0_Pointer' value. The structure of an IFD is the following:
+
+    [Record name]    [size]   [description]
+    ---------------------------------------
+                     2 bytes  number n of Interoperability arrays
+                   12n bytes  the n arrays (12 bytes each)
+                     4 bytes  link to next IFD (can be zero)
+                       ...    additional data area
+
+The next_link field of the 0th IFD, if non-null, points to the beginning of the 1st IFD. The 1st IFD as well as all other sub-IFDs
+must have next_link set to zero. The thumbnail location and size is given by some interoperability arrays in the 1st IFD.
+The structure of an Interoperability array is:
+
+    [Record name]    [size]   [description]
+    ---------------------------------------
+                     2 bytes  Tag (a unique 2-byte number)
+                     2 bytes  Type (one out of 12 types)
+                     4 bytes  Count (the number of values)
+                     4 bytes  Value Offset (value or offset)
+
+The possible types are the same as for the Record class, exception made for nibbles and references. Indeed, the Record class is
+modelled after interoperability arrays, and each interoperability array gets stored as a Record with given tag, type, count and
+values. The "value offset" field gives the offset from the TIFF header base where the value is recorded.
+It contains the actual value if it is not larger than 4 bytes (32 bits). If the value is shorter than 4 bytes, it is recorded
+in the lower end of the 4-byte area (smaller offsets).
+
+*/
+
 // ============================================== EXIF =======================================================
 
 type tEXIFAPP struct {
