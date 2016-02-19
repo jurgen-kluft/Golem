@@ -14,7 +14,7 @@ type Image struct {
 //             imageWidth := image.ReadTagValue("EXIF", TagImageWidth)
 //             imageHeight := image.ReadTagValue("EXIF", TagImageHeight)
 
-func (i Image) ReadTagValue(appname string, tagID uint16) (value interface{}, err error) {
+func (i Image) ReadTagValue(appname string, tagID uint32) (value interface{}, err error) {
 	app, exists := i.apps[appname]
 	if !exists {
 		fmt.Printf("Image does not have '%s' meta section\n", appname)

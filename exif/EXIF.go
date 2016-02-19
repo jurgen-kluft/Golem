@@ -55,7 +55,7 @@ type ifdOffsetItem struct {
 	ifdType uint16
 }
 
-func (t tEXIFAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
+func (t tEXIFAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
 	//fmt.Printf("Read value of tag:0x%X in APP:EXIF\n", tagID2Find)
 
 	tiffOffset := uint32(10)
@@ -80,7 +80,7 @@ func (t tEXIFAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
 			tagID := tag.TagID()
 
 			//fmt.Printf("Checking tag:0x%X at index:%d\n", tagID, i)
-			if tagID == tagID2Find {
+			if uint32(tagID) == tagID2Find {
 				//fmt.Printf("Found tag:0x%X in APP:EXIF at index %d\n", tagID, i)
 				return ifd.ReadValue(tag)
 			}

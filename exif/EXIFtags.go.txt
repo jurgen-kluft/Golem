@@ -1,292 +1,430 @@
 const (
-	ExifTagImageWidth  uint16 = 0x100
-	ExifTagImageHeight uint16 = 0x101
-	ExifTagBitsPerSample uint16 = 0x102
-	ExifTagCompression uint16 = 0x103
-	ExifTagPhotometricInterpretation uint16 = 0x106
-	ExifTagImageDescription uint16 = 0x10E
-	ExifTagMake uint16 = 0x10F
-	ExifTagModel uint16 = 0x110
-	ExifTagStripOffsets uint16 = 0x111
-	ExifTagOrientation uint16 = 0x112
-	ExifTagSamplesPerPixel uint16 = 0x115
-	ExifTagRowsPerStrip uint16 = 0x116
-	ExifTagStripByteCounts uint16 = 0x117
-	ExifTagXResolution uint16 = 0x11A
-	ExifTagYResolution uint16 = 0x11B
-	ExifTagPlanarConfiguration uint16 = 0x11C
-	ExifTagResolutionUnit uint16 = 0x128
-	ExifTagTransferFunction uint16 = 0x12D
-	ExifTagSoftware uint16 = 0x131
-	ExifTagDateTime uint16 = 0x132
-	ExifTagArtist uint16 = 0x13B
-	ExifTagWhitePoint uint16 = 0x13E
-	ExifTagPrimaryChromaticities uint16 = 0x13F
-	ExifTagJPEGInterchangeFormat uint16 = 0x201
+	ExifTagImageWidth                  uint16 = 0x100
+	ExifTagImageHeight                 uint16 = 0x101
+	ExifTagBitsPerSample               uint16 = 0x102
+	ExifTagCompression                 uint16 = 0x103
+	ExifTagPhotometricInterpretation   uint16 = 0x106
+	ExifTagImageDescription            uint16 = 0x10E
+	ExifTagMake                        uint16 = 0x10F
+	ExifTagModel                       uint16 = 0x110
+	ExifTagStripOffsets                uint16 = 0x111
+	ExifTagOrientation                 uint16 = 0x112
+	ExifTagSamplesPerPixel             uint16 = 0x115
+	ExifTagRowsPerStrip                uint16 = 0x116
+	ExifTagStripByteCounts             uint16 = 0x117
+	ExifTagXResolution                 uint16 = 0x11A
+	ExifTagYResolution                 uint16 = 0x11B
+	ExifTagPlanarConfiguration         uint16 = 0x11C
+	ExifTagResolutionUnit              uint16 = 0x128
+	ExifTagTransferFunction            uint16 = 0x12D
+	ExifTagSoftware                    uint16 = 0x131
+	ExifTagDateTime                    uint16 = 0x132
+	ExifTagArtist                      uint16 = 0x13B
+	ExifTagWhitePoint                  uint16 = 0x13E
+	ExifTagPrimaryChromaticities       uint16 = 0x13F
+	ExifTagJPEGInterchangeFormat       uint16 = 0x201
 	ExifTagJPEGInterchangeFormatLength uint16 = 0x202
-	ExifTagYCbCrCoefficients uint16 = 0x211
-	ExifTagYCbCrSubSampling uint16 = 0x212
-	ExifTagYCbCrPositioning uint16 = 0x213
-	ExifTagReferenceBlackWhite uint16 = 0x214
-	ExifTagCopyright uint16 = 0x8298
+	ExifTagYCbCrCoefficients           uint16 = 0x211
+	ExifTagYCbCrSubSampling            uint16 = 0x212
+	ExifTagYCbCrPositioning            uint16 = 0x213
+	ExifTagReferenceBlackWhite         uint16 = 0x214
+	ExifTagCopyright                   uint16 = 0x8298
 
-	ExifTagExposureTime uint16 = 0x829A
-	ExifTagFNumber uint16 = 0x829D
-	ExifTagExposureProgram uint16 = 0x8822
-	ExifTagSpectralSensitivity uint16 = 0x8824
-	ExifTagPhotographicSensitivity uint16 = 0x8827
-	ExifTagOECF uint16 = 0x8828
-	ExifTagSensitivityType uint16 = 0x8830
+	ExifTagExposureTime              uint16 = 0x829A
+	ExifTagFNumber                   uint16 = 0x829D
+	ExifTagExposureProgram           uint16 = 0x8822
+	ExifTagSpectralSensitivity       uint16 = 0x8824
+	ExifTagPhotographicSensitivity   uint16 = 0x8827
+	ExifTagOECF                      uint16 = 0x8828
+	ExifTagSensitivityType           uint16 = 0x8830
 	ExifTagStandardOutputSensitivity uint16 = 0x8831
-	ExifTagRecommendedExposureIndex uint16 = 0x8832
-	ExifTagISOSpeed uint16 = 0x8833
-	ExifTagISOSpeedLatitudeyyy uint16 = 0x8834
-	ExifTagISOSpeedLatitudezzz uint16 = 0x8835
-	ExifTagExifVersion uint16 = 0x9000
-	ExifTagDateTimeOriginal uint16 = 0x9003
-	ExifTagDateTimeDigitized uint16 = 0x9004
-	ExifTagComponentsConfiguration uint16 = 0x9101
-	ExifTagCompressedBitsPerPixel uint16 = 0x9102
-	ExifTagShutterSpeedValue uint16 = 0x9201
-	ExifTagApertureValue uint16 = 0x9202
-	ExifTagBrightnessValue uint16 = 0x9203
-	ExifTagExposureBiasValue uint16 = 0x9204
-	ExifTagMaxApertureValue uint16 = 0x9205
-	ExifTagSubjectDistance uint16 = 0x9206
-	ExifTagMeteringMode uint16 = 0x9207
-	ExifTagLightSource uint16 = 0x9208
-	ExifTagFlash uint16 = 0x9209
-	ExifTagFocalLength uint16 = 0x920A
-	ExifTagSubjectArea uint16 = 0x9214
-	ExifTagMakerNote uint16 = 0x927C
-	ExifTagUserComment uint16 = 0x9286
-	ExifTagSubsecTime uint16 = 0x9290
-	ExifTagSubsecTimeOriginal uint16 = 0x9291
-	ExifTagSubsecTimeDigitized uint16 = 0x9292
-	ExifTagFlashpixVersion uint16 = 0xA000
-	ExifTagColorSpace uint16 = 0xA001
-	ExifTagPixelXDimension uint16 = 0xA002
-	ExifTagPixelYDimension uint16 = 0xA003
-	ExifTagRelatedSoundFile uint16 = 0xA004
-	ExifTagFlashEnergy uint16 = 0xA20B
-	ExifTagSpatialFrequencyResponse uint16 = 0xA20C
-	ExifTagFocalPlaneXResolution uint16 = 0xA20E
-	ExifTagFocalPlaneYResolution uint16 = 0xA20F
-	ExifTagFocalPlaneResolutionUnit uint16 = 0xA210
-	ExifTagSubjectLocation uint16 = 0xA214
-	ExifTagExposureIndex uint16 = 0xA215
-	ExifTagSensingMethod uint16 = 0xA217
-	ExifTagFileSource uint16 = 0xA300
-	ExifTagSceneType uint16 = 0xA301
-	ExifTagCFAPattern uint16 = 0xA302
-	ExifTagCustomRendered uint16 = 0xA401
-	ExifTagExposureMode uint16 = 0xA402
-	ExifTagWhiteBalance uint16 = 0xA403
-	ExifTagDigitalZoomRatio uint16 = 0xA404
-	ExifTagFocalLengthIn35mmFilm uint16 = 0xA405
-	ExifTagSceneCaptureType uint16 = 0xA406
-	ExifTagGainControl uint16 = 0xA407
-	ExifTagContrast uint16 = 0xA408
-	ExifTagSaturation uint16 = 0xA409
-	ExifTagSharpness uint16 = 0xA40A
-	ExifTagDeviceSettingDescription uint16 = 0xA40B
-	ExifTagSubjectDistanceRange uint16 = 0xA40C
-	ExifTagImageUniqueID uint16 = 0xA420
-	ExifTagCameraOwnerName uint16 = 0xA430
-	ExifTagBodySerialNumber uint16 = 0xA431
-	ExifTagLensSpecification uint16 = 0xA432
-	ExifTagLensMake uint16 = 0xA433
-	ExifTagLensModel uint16 = 0xA434
-	ExifTagLensSerialNumber uint16 = 0xA435
+	ExifTagRecommendedExposureIndex  uint16 = 0x8832
+	ExifTagISOSpeed                  uint16 = 0x8833
+	ExifTagISOSpeedLatitudeyyy       uint16 = 0x8834
+	ExifTagISOSpeedLatitudezzz       uint16 = 0x8835
+	ExifTagExifVersion               uint16 = 0x9000
+	ExifTagDateTimeOriginal          uint16 = 0x9003
+	ExifTagDateTimeDigitized         uint16 = 0x9004
+	ExifTagComponentsConfiguration   uint16 = 0x9101
+	ExifTagCompressedBitsPerPixel    uint16 = 0x9102
+	ExifTagShutterSpeedValue         uint16 = 0x9201
+	ExifTagApertureValue             uint16 = 0x9202
+	ExifTagBrightnessValue           uint16 = 0x9203
+	ExifTagExposureBiasValue         uint16 = 0x9204
+	ExifTagMaxApertureValue          uint16 = 0x9205
+	ExifTagSubjectDistance           uint16 = 0x9206
+	ExifTagMeteringMode              uint16 = 0x9207
+	ExifTagLightSource               uint16 = 0x9208
+	ExifTagFlash                     uint16 = 0x9209
+	ExifTagFocalLength               uint16 = 0x920A
+	ExifTagSubjectArea               uint16 = 0x9214
+	ExifTagMakerNote                 uint16 = 0x927C
+	ExifTagUserComment               uint16 = 0x9286
+	ExifTagSubsecTime                uint16 = 0x9290
+	ExifTagSubsecTimeOriginal        uint16 = 0x9291
+	ExifTagSubsecTimeDigitized       uint16 = 0x9292
+	ExifTagFlashpixVersion           uint16 = 0xA000
+	ExifTagColorSpace                uint16 = 0xA001
+	ExifTagPixelXDimension           uint16 = 0xA002
+	ExifTagPixelYDimension           uint16 = 0xA003
+	ExifTagRelatedSoundFile          uint16 = 0xA004
+	ExifTagFlashEnergy               uint16 = 0xA20B
+	ExifTagSpatialFrequencyResponse  uint16 = 0xA20C
+	ExifTagFocalPlaneXResolution     uint16 = 0xA20E
+	ExifTagFocalPlaneYResolution     uint16 = 0xA20F
+	ExifTagFocalPlaneResolutionUnit  uint16 = 0xA210
+	ExifTagSubjectLocation           uint16 = 0xA214
+	ExifTagExposureIndex             uint16 = 0xA215
+	ExifTagSensingMethod             uint16 = 0xA217
+	ExifTagFileSource                uint16 = 0xA300
+	ExifTagSceneType                 uint16 = 0xA301
+	ExifTagCFAPattern                uint16 = 0xA302
+	ExifTagCustomRendered            uint16 = 0xA401
+	ExifTagExposureMode              uint16 = 0xA402
+	ExifTagWhiteBalance              uint16 = 0xA403
+	ExifTagDigitalZoomRatio          uint16 = 0xA404
+	ExifTagFocalLengthIn35mmFilm     uint16 = 0xA405
+	ExifTagSceneCaptureType          uint16 = 0xA406
+	ExifTagGainControl               uint16 = 0xA407
+	ExifTagContrast                  uint16 = 0xA408
+	ExifTagSaturation                uint16 = 0xA409
+	ExifTagSharpness                 uint16 = 0xA40A
+	ExifTagDeviceSettingDescription  uint16 = 0xA40B
+	ExifTagSubjectDistanceRange      uint16 = 0xA40C
+	ExifTagImageUniqueID             uint16 = 0xA420
+	ExifTagCameraOwnerName           uint16 = 0xA430
+	ExifTagBodySerialNumber          uint16 = 0xA431
+	ExifTagLensSpecification         uint16 = 0xA432
+	ExifTagLensMake                  uint16 = 0xA433
+	ExifTagLensModel                 uint16 = 0xA434
+	ExifTagLensSerialNumber          uint16 = 0xA435
 
-	ExifGpsTagGPSVersionID uint16 = 0x0
-	ExifGpsTagGPSLatitudeRef uint16 = 0x1
-	ExifGpsTagGPSLatitude uint16 = 0x2
-	ExifGpsTagGPSLongitudeRef uint16 = 0x3
-	ExifGpsTagGPSLongitude uint16 = 0x4
-	ExifGpsTagGPSAltitudeRef uint16 = 0x5
-	ExifGpsTagGPSAltitude uint16 = 0x6
-	ExifGpsTagGPSTimestamp uint16 = 0x7
-	ExifGpsTagGPSSatellites uint16 = 0x8
-	ExifGpsTagGPSStatus uint16 = 0x9
-	ExifGpsTagGPSMeasureMode uint16 = 0xA
-	ExifGpsTagGPSDOP uint16 = 0xB
-	ExifGpsTagGPSSpeedRef uint16 = 0xC
-	ExifGpsTagGPSSpeed uint16 = 0xD
-	ExifGpsTagGPSTrackRef uint16 = 0xE
-	ExifGpsTagGPSTrack uint16 = 0xF
-	ExifGpsTagGPSImgDirectionRef uint16 = 0x10
-	ExifGpsTagGPSImgDirection uint16 = 0x11
-	ExifGpsTagGPSMapDatum uint16 = 0x12
-	ExifGpsTagGPSDestLatitudeRef uint16 = 0x13
-	ExifGpsTagGPSDestLatitude uint16 = 0x14
-	ExifGpsTagGPSDestLongitudeRef uint16 = 0x15
-	ExifGpsTagGPSDestLongitude uint16 = 0x16
-	ExifGpsTagGPSDestBearingRef uint16 = 0x17
-	ExifGpsTagGPSDestBearing uint16 = 0x18
-	ExifGpsTagGPSDestDistanceRef uint16 = 0x19
-	ExifGpsTagGPSDestDistance uint16 = 0x1A
-	ExifGpsTagGPSProcessingMethod uint16 = 0x1B
-	ExifGpsTagGPSAreaInformation uint16 = 0x1C
-	ExifGpsTagGPSDateStamp uint16 = 0x1D
-	ExifGpsTagGPSDifferential uint16 = 0x1E
+	ExifGpsTagGPSVersionID         uint16 = 0x0
+	ExifGpsTagGPSLatitudeRef       uint16 = 0x1
+	ExifGpsTagGPSLatitude          uint16 = 0x2
+	ExifGpsTagGPSLongitudeRef      uint16 = 0x3
+	ExifGpsTagGPSLongitude         uint16 = 0x4
+	ExifGpsTagGPSAltitudeRef       uint16 = 0x5
+	ExifGpsTagGPSAltitude          uint16 = 0x6
+	ExifGpsTagGPSTimestamp         uint16 = 0x7
+	ExifGpsTagGPSSatellites        uint16 = 0x8
+	ExifGpsTagGPSStatus            uint16 = 0x9
+	ExifGpsTagGPSMeasureMode       uint16 = 0xA
+	ExifGpsTagGPSDOP               uint16 = 0xB
+	ExifGpsTagGPSSpeedRef          uint16 = 0xC
+	ExifGpsTagGPSSpeed             uint16 = 0xD
+	ExifGpsTagGPSTrackRef          uint16 = 0xE
+	ExifGpsTagGPSTrack             uint16 = 0xF
+	ExifGpsTagGPSImgDirectionRef   uint16 = 0x10
+	ExifGpsTagGPSImgDirection      uint16 = 0x11
+	ExifGpsTagGPSMapDatum          uint16 = 0x12
+	ExifGpsTagGPSDestLatitudeRef   uint16 = 0x13
+	ExifGpsTagGPSDestLatitude      uint16 = 0x14
+	ExifGpsTagGPSDestLongitudeRef  uint16 = 0x15
+	ExifGpsTagGPSDestLongitude     uint16 = 0x16
+	ExifGpsTagGPSDestBearingRef    uint16 = 0x17
+	ExifGpsTagGPSDestBearing       uint16 = 0x18
+	ExifGpsTagGPSDestDistanceRef   uint16 = 0x19
+	ExifGpsTagGPSDestDistance      uint16 = 0x1A
+	ExifGpsTagGPSProcessingMethod  uint16 = 0x1B
+	ExifGpsTagGPSAreaInformation   uint16 = 0x1C
+	ExifGpsTagGPSDateStamp         uint16 = 0x1D
+	ExifGpsTagGPSDifferential      uint16 = 0x1E
 	ExifGpsTagGPSHPositioningError uint16 = 0x1F
 
-	ExifXpTagXPTitle uint16 = 0x9c9b
-	ExifXpTagXPComment uint16 = 0x9c9c
-	ExifXpTagXPAuthor uint16 = 0x9c9d
+	ExifXpTagXPTitle    uint16 = 0x9c9b
+	ExifXpTagXPComment  uint16 = 0x9c9c
+	ExifXpTagXPAuthor   uint16 = 0x9c9d
 	ExifXpTagXPKeywords uint16 = 0x9c9e
-	ExifXpTagXPSubject uint16 = 0x9c9f
-
+	ExifXpTagXPSubject  uint16 = 0x9c9f
 )
 
 type tExifTagDescr struct {
-	tag  tExifTagType
+	tag  uint16
 	id   uint16
 	name string
 }
 
 var aExifTagDescr = map[uint16]tExifTagDescr{
 	// Primary tags
-	ExifTagImageWidth : {tag: cIFD0TT, name: "ImageWidth", id: ExifTagImageWidth},
-	ExifTagImageHeight : {tag: cIFD0TT, name: "ImageLength", id: ExifTagImageHeight},
-	ExifTagBitsPerSample : {tag: cIFD0TT, name: "BitsPerSample", id: ExifTagBitsPerSample},
-	ExifTagCompression : {tag: cIFD0TT, name: "Compression", id: ExifTagCompression},
-	ExifTagPhotometricInterpretation : {tag: cIFD0TT, name: "PhotometricInterpretation", id: ExifTagPhotometricInterpretation},
-	ExifTagImageDescription : {tag: cIFD0TT, name: "ImageDescription", id: ExifTagImageDescription},
-	ExifTagMake : {tag: cIFD0TT, name: "Make", id: ExifTagMake},
-	ExifTagModel : {tag: cIFD0TT, name: "Model", id: ExifTagModel},
-	ExifTagStripOffsets : {tag: cIFD0TT, name: "StripOffsets", id: ExifTagStripOffsets},
-	ExifTagOrientation : {tag: cIFD0TT, name: "Orientation", id: ExifTagOrientation},
-	ExifTagSamplesPerPixel : {tag: cIFD0TT, name: "SamplesPerPixel", id: ExifTagSamplesPerPixel},
-	ExifTagRowsPerStrip : {tag: cIFD0TT, name: "RowsPerStrip", id: ExifTagRowsPerStrip},
-	ExifTagStripByteCounts : {tag: cIFD0TT, name: "StripByteCounts", id: ExifTagStripByteCounts},
-	ExifTagXResolution : {tag: cIFD0TT, name: "XResolution", id: ExifTagXResolution},
-	ExifTagYResolution : {tag: cIFD0TT, name: "YResolution", id: ExifTagYResolution},
-	ExifTagPlanarConfiguration : {tag: cIFD0TT, name: "PlanarConfiguration", id: ExifTagPlanarConfiguration},
-	ExifTagResolutionUnit : {tag: cIFD0TT, name: "ResolutionUnit", id: ExifTagResolutionUnit},
-	ExifTagTransferFunction : {tag: cIFD0TT, name: "TransferFunction", id: ExifTagTransferFunction},
-	ExifTagSoftware : {tag: cIFD0TT, name: "Software", id: ExifTagSoftware},
-	ExifTagDateTime : {tag: cIFD0TT, name: "DateTime", id: ExifTagDateTime},
-	ExifTagArtist : {tag: cIFD0TT, name: "Artist", id: ExifTagArtist},
-	ExifTagWhitePoint : {tag: cIFD0TT, name: "WhitePoint", id: ExifTagWhitePoint},
-	ExifTagPrimaryChromaticities : {tag: cIFD0TT, name: "PrimaryChromaticities", id: ExifTagPrimaryChromaticities},
-	ExifTagJPEGInterchangeFormat : {tag: cIFD0TT, name: "JPEGInterchangeFormat", id: ExifTagJPEGInterchangeFormat},
-	ExifTagJPEGInterchangeFormatLength : {tag: cIFD0TT, name: "JPEGInterchangeFormatLength", id: ExifTagJPEGInterchangeFormatLength},
-	ExifTagYCbCrCoefficients : {tag: cIFD0TT, name: "YCbCrCoefficients", id: ExifTagYCbCrCoefficients},
-	ExifTagYCbCrSubSampling : {tag: cIFD0TT, name: "YCbCrSubSampling", id: ExifTagYCbCrSubSampling},
-	ExifTagYCbCrPositioning : {tag: cIFD0TT, name: "YCbCrPositioning", id: ExifTagYCbCrPositioning},
-	ExifTagReferenceBlackWhite : {tag: cIFD0TT, name: "ReferenceBlackWhite", id: ExifTagReferenceBlackWhite},
-	ExifTagCopyright : {tag: cIFD0TT, name: "Copyright", id: ExifTagCopyright},
+	ExifTagImageWidth:                  {tag: cIFDZERO, name: "ImageWidth", id: ExifTagImageWidth},
+	ExifTagImageHeight:                 {tag: cIFDZERO, name: "ImageLength", id: ExifTagImageHeight},
+	ExifTagBitsPerSample:               {tag: cIFDZERO, name: "BitsPerSample", id: ExifTagBitsPerSample},
+	ExifTagCompression:                 {tag: cIFDZERO, name: "Compression", id: ExifTagCompression},
+	ExifTagPhotometricInterpretation:   {tag: cIFDZERO, name: "PhotometricInterpretation", id: ExifTagPhotometricInterpretation},
+	ExifTagImageDescription:            {tag: cIFDZERO, name: "ImageDescription", id: ExifTagImageDescription},
+	ExifTagMake:                        {tag: cIFDZERO, name: "Make", id: ExifTagMake},
+	ExifTagModel:                       {tag: cIFDZERO, name: "Model", id: ExifTagModel},
+	ExifTagStripOffsets:                {tag: cIFDZERO, name: "StripOffsets", id: ExifTagStripOffsets},
+	ExifTagOrientation:                 {tag: cIFDZERO, name: "Orientation", id: ExifTagOrientation},
+	ExifTagSamplesPerPixel:             {tag: cIFDZERO, name: "SamplesPerPixel", id: ExifTagSamplesPerPixel},
+	ExifTagRowsPerStrip:                {tag: cIFDZERO, name: "RowsPerStrip", id: ExifTagRowsPerStrip},
+	ExifTagStripByteCounts:             {tag: cIFDZERO, name: "StripByteCounts", id: ExifTagStripByteCounts},
+	ExifTagXResolution:                 {tag: cIFDZERO, name: "XResolution", id: ExifTagXResolution},
+	ExifTagYResolution:                 {tag: cIFDZERO, name: "YResolution", id: ExifTagYResolution},
+	ExifTagPlanarConfiguration:         {tag: cIFDZERO, name: "PlanarConfiguration", id: ExifTagPlanarConfiguration},
+	ExifTagResolutionUnit:              {tag: cIFDZERO, name: "ResolutionUnit", id: ExifTagResolutionUnit},
+	ExifTagTransferFunction:            {tag: cIFDZERO, name: "TransferFunction", id: ExifTagTransferFunction},
+	ExifTagSoftware:                    {tag: cIFDZERO, name: "Software", id: ExifTagSoftware},
+	ExifTagDateTime:                    {tag: cIFDZERO, name: "DateTime", id: ExifTagDateTime},
+	ExifTagArtist:                      {tag: cIFDZERO, name: "Artist", id: ExifTagArtist},
+	ExifTagWhitePoint:                  {tag: cIFDZERO, name: "WhitePoint", id: ExifTagWhitePoint},
+	ExifTagPrimaryChromaticities:       {tag: cIFDZERO, name: "PrimaryChromaticities", id: ExifTagPrimaryChromaticities},
+	ExifTagJPEGInterchangeFormat:       {tag: cIFDZERO, name: "JPEGInterchangeFormat", id: ExifTagJPEGInterchangeFormat},
+	ExifTagJPEGInterchangeFormatLength: {tag: cIFDZERO, name: "JPEGInterchangeFormatLength", id: ExifTagJPEGInterchangeFormatLength},
+	ExifTagYCbCrCoefficients:           {tag: cIFDZERO, name: "YCbCrCoefficients", id: ExifTagYCbCrCoefficients},
+	ExifTagYCbCrSubSampling:            {tag: cIFDZERO, name: "YCbCrSubSampling", id: ExifTagYCbCrSubSampling},
+	ExifTagYCbCrPositioning:            {tag: cIFDZERO, name: "YCbCrPositioning", id: ExifTagYCbCrPositioning},
+	ExifTagReferenceBlackWhite:         {tag: cIFDZERO, name: "ReferenceBlackWhite", id: ExifTagReferenceBlackWhite},
+	ExifTagCopyright:                   {tag: cIFDZERO, name: "Copyright", id: ExifTagCopyright},
 
 	// EXIF tags
-	ExifTagExposureTime : {tag: cEXIFTT, name: "ExposureTime", id: ExifTagExposureTime},
-	ExifTagFNumber : {tag: cEXIFTT, name: "FNumber", id: ExifTagFNumber},
-	ExifTagExposureProgram : {tag: cEXIFTT, name: "ExposureProgram", id: ExifTagExposureProgram},
-	ExifTagSpectralSensitivity : {tag: cEXIFTT, name: "SpectralSensitivity", id: ExifTagSpectralSensitivity},
-	ExifTagPhotographicSensitivity : {tag: cEXIFTT, name: "PhotographicSensitivity", id: ExifTagPhotographicSensitivity},
-	ExifTagOECF : {tag: cEXIFTT, name: "OECF", id: ExifTagOECF},
-	ExifTagSensitivityType : {tag: cEXIFTT, name: "SensitivityType", id: ExifTagSensitivityType},
-	ExifTagStandardOutputSensitivity : {tag: cEXIFTT, name: "StandardOutputSensitivity", id: ExifTagStandardOutputSensitivity},
-	ExifTagRecommendedExposureIndex : {tag: cEXIFTT, name: "RecommendedExposureIndex", id: ExifTagRecommendedExposureIndex},
-	ExifTagISOSpeed : {tag: cEXIFTT, name: "ISOSpeed", id: ExifTagISOSpeed},
-	ExifTagISOSpeedLatitudeyyy : {tag: cEXIFTT, name: "ISOSpeedLatitudeyyy", id: ExifTagISOSpeedLatitudeyyy},
-	ExifTagISOSpeedLatitudezzz : {tag: cEXIFTT, name: "ISOSpeedLatitudezzz", id: ExifTagISOSpeedLatitudezzz},
-	ExifTagExifVersion : {tag: cEXIFTT, name: "ExifVersion", id: ExifTagExifVersion},
-	ExifTagDateTimeOriginal : {tag: cEXIFTT, name: "DateTimeOriginal", id: ExifTagDateTimeOriginal},
-	ExifTagDateTimeDigitized : {tag: cEXIFTT, name: "DateTimeDigitized", id: ExifTagDateTimeDigitized},
-	ExifTagComponentsConfiguration : {tag: cEXIFTT, name: "ComponentsConfiguration", id: ExifTagComponentsConfiguration},
-	ExifTagCompressedBitsPerPixel : {tag: cEXIFTT, name: "CompressedBitsPerPixel", id: ExifTagCompressedBitsPerPixel},
-	ExifTagShutterSpeedValue : {tag: cEXIFTT, name: "ShutterSpeedValue", id: ExifTagShutterSpeedValue},
-	ExifTagApertureValue : {tag: cEXIFTT, name: "ApertureValue", id: ExifTagApertureValue},
-	ExifTagBrightnessValue : {tag: cEXIFTT, name: "BrightnessValue", id: ExifTagBrightnessValue},
-	ExifTagExposureBiasValue : {tag: cEXIFTT, name: "ExposureBiasValue", id: ExifTagExposureBiasValue},
-	ExifTagMaxApertureValue : {tag: cEXIFTT, name: "MaxApertureValue", id: ExifTagMaxApertureValue},
-	ExifTagSubjectDistance : {tag: cEXIFTT, name: "SubjectDistance", id: ExifTagSubjectDistance},
-	ExifTagMeteringMode : {tag: cEXIFTT, name: "MeteringMode", id: ExifTagMeteringMode},
-	ExifTagLightSource : {tag: cEXIFTT, name: "LightSource", id: ExifTagLightSource},
-	ExifTagFlash : {tag: cEXIFTT, name: "Flash", id: ExifTagFlash},
-	ExifTagFocalLength : {tag: cEXIFTT, name: "FocalLength", id: ExifTagFocalLength},
-	ExifTagSubjectArea : {tag: cEXIFTT, name: "SubjectArea", id: ExifTagSubjectArea},
-	ExifTagMakerNote : {tag: cEXIFTT, name: "MakerNote", id: ExifTagMakerNote},
-	ExifTagUserComment : {tag: cEXIFTT, name: "UserComment", id: ExifTagUserComment},
-	ExifTagSubsecTime : {tag: cEXIFTT, name: "SubsecTime", id: ExifTagSubsecTime},
-	ExifTagSubsecTimeOriginal : {tag: cEXIFTT, name: "SubsecTimeOriginal", id: ExifTagSubsecTimeOriginal},
-	ExifTagSubsecTimeDigitized : {tag: cEXIFTT, name: "SubsecTimeDigitized", id: ExifTagSubsecTimeDigitized},
-	ExifTagFlashpixVersion : {tag: cEXIFTT, name: "FlashpixVersion", id: ExifTagFlashpixVersion},
-	ExifTagColorSpace : {tag: cEXIFTT, name: "ColorSpace", id: ExifTagColorSpace},
-	ExifTagPixelXDimension : {tag: cEXIFTT, name: "PixelXDimension", id: ExifTagPixelXDimension},
-	ExifTagPixelYDimension : {tag: cEXIFTT, name: "PixelYDimension", id: ExifTagPixelYDimension},
-	ExifTagRelatedSoundFile : {tag: cEXIFTT, name: "RelatedSoundFile", id: ExifTagRelatedSoundFile},
-	ExifTagFlashEnergy : {tag: cEXIFTT, name: "FlashEnergy", id: ExifTagFlashEnergy},
-	ExifTagSpatialFrequencyResponse : {tag: cEXIFTT, name: "SpatialFrequencyResponse", id: ExifTagSpatialFrequencyResponse},
-	ExifTagFocalPlaneXResolution : {tag: cEXIFTT, name: "FocalPlaneXResolution", id: ExifTagFocalPlaneXResolution},
-	ExifTagFocalPlaneYResolution : {tag: cEXIFTT, name: "FocalPlaneYResolution", id: ExifTagFocalPlaneYResolution},
-	ExifTagFocalPlaneResolutionUnit : {tag: cEXIFTT, name: "FocalPlaneResolutionUnit", id: ExifTagFocalPlaneResolutionUnit},
-	ExifTagSubjectLocation : {tag: cEXIFTT, name: "SubjectLocation", id: ExifTagSubjectLocation},
-	ExifTagExposureIndex : {tag: cEXIFTT, name: "ExposureIndex", id: ExifTagExposureIndex},
-	ExifTagSensingMethod : {tag: cEXIFTT, name: "SensingMethod", id: ExifTagSensingMethod},
-	ExifTagFileSource : {tag: cEXIFTT, name: "FileSource", id: ExifTagFileSource},
-	ExifTagSceneType : {tag: cEXIFTT, name: "SceneType", id: ExifTagSceneType},
-	ExifTagCFAPattern : {tag: cEXIFTT, name: "CFAPattern", id: ExifTagCFAPattern},
-	ExifTagCustomRendered : {tag: cEXIFTT, name: "CustomRendered", id: ExifTagCustomRendered},
-	ExifTagExposureMode : {tag: cEXIFTT, name: "ExposureMode", id: ExifTagExposureMode},
-	ExifTagWhiteBalance : {tag: cEXIFTT, name: "WhiteBalance", id: ExifTagWhiteBalance},
-	ExifTagDigitalZoomRatio : {tag: cEXIFTT, name: "DigitalZoomRatio", id: ExifTagDigitalZoomRatio},
-	ExifTagFocalLengthIn35mmFilm : {tag: cEXIFTT, name: "FocalLengthIn35mmFilm", id: ExifTagFocalLengthIn35mmFilm},
-	ExifTagSceneCaptureType : {tag: cEXIFTT, name: "SceneCaptureType", id: ExifTagSceneCaptureType},
-	ExifTagGainControl : {tag: cEXIFTT, name: "GainControl", id: ExifTagGainControl},
-	ExifTagContrast : {tag: cEXIFTT, name: "Contrast", id: ExifTagContrast},
-	ExifTagSaturation : {tag: cEXIFTT, name: "Saturation", id: ExifTagSaturation},
-	ExifTagSharpness : {tag: cEXIFTT, name: "Sharpness", id: ExifTagSharpness},
-	ExifTagDeviceSettingDescription : {tag: cEXIFTT, name: "DeviceSettingDescription", id: ExifTagDeviceSettingDescription},
-	ExifTagSubjectDistanceRange : {tag: cEXIFTT, name: "SubjectDistanceRange", id: ExifTagSubjectDistanceRange},
-	ExifTagImageUniqueID : {tag: cEXIFTT, name: "ImageUniqueID", id: ExifTagImageUniqueID},
-	ExifTagCameraOwnerName : {tag: cEXIFTT, name: "CameraOwnerName", id: ExifTagCameraOwnerName},
-	ExifTagBodySerialNumber : {tag: cEXIFTT, name: "BodySerialNumber", id: ExifTagBodySerialNumber},
-	ExifTagLensSpecification : {tag: cEXIFTT, name: "LensSpecification", id: ExifTagLensSpecification},
-	ExifTagLensMake : {tag: cEXIFTT, name: "LensMake", id: ExifTagLensMake},
-	ExifTagLensModel : {tag: cEXIFTT, name: "LensModel", id: ExifTagLensModel},
-	ExifTagLensSerialNumber : {tag: cEXIFTT, name: "LensSerialNumber", id: ExifTagLensSerialNumber},
+	ExifTagExposureTime:              {tag: cIFDEXIF, name: "ExposureTime", id: ExifTagExposureTime},
+	ExifTagFNumber:                   {tag: cIFDEXIF, name: "FNumber", id: ExifTagFNumber},
+	ExifTagExposureProgram:           {tag: cIFDEXIF, name: "ExposureProgram", id: ExifTagExposureProgram},
+	ExifTagSpectralSensitivity:       {tag: cIFDEXIF, name: "SpectralSensitivity", id: ExifTagSpectralSensitivity},
+	ExifTagPhotographicSensitivity:   {tag: cIFDEXIF, name: "PhotographicSensitivity", id: ExifTagPhotographicSensitivity},
+	ExifTagOECF:                      {tag: cIFDEXIF, name: "OECF", id: ExifTagOECF},
+	ExifTagSensitivityType:           {tag: cIFDEXIF, name: "SensitivityType", id: ExifTagSensitivityType},
+	ExifTagStandardOutputSensitivity: {tag: cIFDEXIF, name: "StandardOutputSensitivity", id: ExifTagStandardOutputSensitivity},
+	ExifTagRecommendedExposureIndex:  {tag: cIFDEXIF, name: "RecommendedExposureIndex", id: ExifTagRecommendedExposureIndex},
+	ExifTagISOSpeed:                  {tag: cIFDEXIF, name: "ISOSpeed", id: ExifTagISOSpeed},
+	ExifTagISOSpeedLatitudeyyy:       {tag: cIFDEXIF, name: "ISOSpeedLatitudeyyy", id: ExifTagISOSpeedLatitudeyyy},
+	ExifTagISOSpeedLatitudezzz:       {tag: cIFDEXIF, name: "ISOSpeedLatitudezzz", id: ExifTagISOSpeedLatitudezzz},
+	ExifTagExifVersion:               {tag: cIFDEXIF, name: "ExifVersion", id: ExifTagExifVersion},
+	ExifTagDateTimeOriginal:          {tag: cIFDEXIF, name: "DateTimeOriginal", id: ExifTagDateTimeOriginal},
+	ExifTagDateTimeDigitized:         {tag: cIFDEXIF, name: "DateTimeDigitized", id: ExifTagDateTimeDigitized},
+	ExifTagComponentsConfiguration:   {tag: cIFDEXIF, name: "ComponentsConfiguration", id: ExifTagComponentsConfiguration},
+	ExifTagCompressedBitsPerPixel:    {tag: cIFDEXIF, name: "CompressedBitsPerPixel", id: ExifTagCompressedBitsPerPixel},
+	ExifTagShutterSpeedValue:         {tag: cIFDEXIF, name: "ShutterSpeedValue", id: ExifTagShutterSpeedValue},
+	ExifTagApertureValue:             {tag: cIFDEXIF, name: "ApertureValue", id: ExifTagApertureValue},
+	ExifTagBrightnessValue:           {tag: cIFDEXIF, name: "BrightnessValue", id: ExifTagBrightnessValue},
+	ExifTagExposureBiasValue:         {tag: cIFDEXIF, name: "ExposureBiasValue", id: ExifTagExposureBiasValue},
+	ExifTagMaxApertureValue:          {tag: cIFDEXIF, name: "MaxApertureValue", id: ExifTagMaxApertureValue},
+	ExifTagSubjectDistance:           {tag: cIFDEXIF, name: "SubjectDistance", id: ExifTagSubjectDistance},
+	ExifTagMeteringMode:              {tag: cIFDEXIF, name: "MeteringMode", id: ExifTagMeteringMode},
+	ExifTagLightSource:               {tag: cIFDEXIF, name: "LightSource", id: ExifTagLightSource},
+	ExifTagFlash:                     {tag: cIFDEXIF, name: "Flash", id: ExifTagFlash},
+	ExifTagFocalLength:               {tag: cIFDEXIF, name: "FocalLength", id: ExifTagFocalLength},
+	ExifTagSubjectArea:               {tag: cIFDEXIF, name: "SubjectArea", id: ExifTagSubjectArea},
+	ExifTagMakerNote:                 {tag: cIFDEXIF, name: "MakerNote", id: ExifTagMakerNote},
+	ExifTagUserComment:               {tag: cIFDEXIF, name: "UserComment", id: ExifTagUserComment},
+	ExifTagSubsecTime:                {tag: cIFDEXIF, name: "SubsecTime", id: ExifTagSubsecTime},
+	ExifTagSubsecTimeOriginal:        {tag: cIFDEXIF, name: "SubsecTimeOriginal", id: ExifTagSubsecTimeOriginal},
+	ExifTagSubsecTimeDigitized:       {tag: cIFDEXIF, name: "SubsecTimeDigitized", id: ExifTagSubsecTimeDigitized},
+	ExifTagFlashpixVersion:           {tag: cIFDEXIF, name: "FlashpixVersion", id: ExifTagFlashpixVersion},
+	ExifTagColorSpace:                {tag: cIFDEXIF, name: "ColorSpace", id: ExifTagColorSpace},
+	ExifTagPixelXDimension:           {tag: cIFDEXIF, name: "PixelXDimension", id: ExifTagPixelXDimension},
+	ExifTagPixelYDimension:           {tag: cIFDEXIF, name: "PixelYDimension", id: ExifTagPixelYDimension},
+	ExifTagRelatedSoundFile:          {tag: cIFDEXIF, name: "RelatedSoundFile", id: ExifTagRelatedSoundFile},
+	ExifTagFlashEnergy:               {tag: cIFDEXIF, name: "FlashEnergy", id: ExifTagFlashEnergy},
+	ExifTagSpatialFrequencyResponse:  {tag: cIFDEXIF, name: "SpatialFrequencyResponse", id: ExifTagSpatialFrequencyResponse},
+	ExifTagFocalPlaneXResolution:     {tag: cIFDEXIF, name: "FocalPlaneXResolution", id: ExifTagFocalPlaneXResolution},
+	ExifTagFocalPlaneYResolution:     {tag: cIFDEXIF, name: "FocalPlaneYResolution", id: ExifTagFocalPlaneYResolution},
+	ExifTagFocalPlaneResolutionUnit:  {tag: cIFDEXIF, name: "FocalPlaneResolutionUnit", id: ExifTagFocalPlaneResolutionUnit},
+	ExifTagSubjectLocation:           {tag: cIFDEXIF, name: "SubjectLocation", id: ExifTagSubjectLocation},
+	ExifTagExposureIndex:             {tag: cIFDEXIF, name: "ExposureIndex", id: ExifTagExposureIndex},
+	ExifTagSensingMethod:             {tag: cIFDEXIF, name: "SensingMethod", id: ExifTagSensingMethod},
+	ExifTagFileSource:                {tag: cIFDEXIF, name: "FileSource", id: ExifTagFileSource},
+	ExifTagSceneType:                 {tag: cIFDEXIF, name: "SceneType", id: ExifTagSceneType},
+	ExifTagCFAPattern:                {tag: cIFDEXIF, name: "CFAPattern", id: ExifTagCFAPattern},
+	ExifTagCustomRendered:            {tag: cIFDEXIF, name: "CustomRendered", id: ExifTagCustomRendered},
+	ExifTagExposureMode:              {tag: cIFDEXIF, name: "ExposureMode", id: ExifTagExposureMode},
+	ExifTagWhiteBalance:              {tag: cIFDEXIF, name: "WhiteBalance", id: ExifTagWhiteBalance},
+	ExifTagDigitalZoomRatio:          {tag: cIFDEXIF, name: "DigitalZoomRatio", id: ExifTagDigitalZoomRatio},
+	ExifTagFocalLengthIn35mmFilm:     {tag: cIFDEXIF, name: "FocalLengthIn35mmFilm", id: ExifTagFocalLengthIn35mmFilm},
+	ExifTagSceneCaptureType:          {tag: cIFDEXIF, name: "SceneCaptureType", id: ExifTagSceneCaptureType},
+	ExifTagGainControl:               {tag: cIFDEXIF, name: "GainControl", id: ExifTagGainControl},
+	ExifTagContrast:                  {tag: cIFDEXIF, name: "Contrast", id: ExifTagContrast},
+	ExifTagSaturation:                {tag: cIFDEXIF, name: "Saturation", id: ExifTagSaturation},
+	ExifTagSharpness:                 {tag: cIFDEXIF, name: "Sharpness", id: ExifTagSharpness},
+	ExifTagDeviceSettingDescription:  {tag: cIFDEXIF, name: "DeviceSettingDescription", id: ExifTagDeviceSettingDescription},
+	ExifTagSubjectDistanceRange:      {tag: cIFDEXIF, name: "SubjectDistanceRange", id: ExifTagSubjectDistanceRange},
+	ExifTagImageUniqueID:             {tag: cIFDEXIF, name: "ImageUniqueID", id: ExifTagImageUniqueID},
+	ExifTagCameraOwnerName:           {tag: cIFDEXIF, name: "CameraOwnerName", id: ExifTagCameraOwnerName},
+	ExifTagBodySerialNumber:          {tag: cIFDEXIF, name: "BodySerialNumber", id: ExifTagBodySerialNumber},
+	ExifTagLensSpecification:         {tag: cIFDEXIF, name: "LensSpecification", id: ExifTagLensSpecification},
+	ExifTagLensMake:                  {tag: cIFDEXIF, name: "LensMake", id: ExifTagLensMake},
+	ExifTagLensModel:                 {tag: cIFDEXIF, name: "LensModel", id: ExifTagLensModel},
+	ExifTagLensSerialNumber:          {tag: cIFDEXIF, name: "LensSerialNumber", id: ExifTagLensSerialNumber},
 
 	// GPS tags
-	ExifGpsTagGPSVersionID : {tag: cGPSTT, name: "GPSVersionID", id: ExifGpsTagGPSVersionID},
-	ExifGpsTagGPSLatitudeRef : {tag: cGPSTT, name: "GPSLatitudeRef", id: ExifGpsTagGPSLatitudeRef},
-	ExifGpsTagGPSLatitude : {tag: cGPSTT, name: "GPSLatitude", id: ExifGpsTagGPSLatitude},
-	ExifGpsTagGPSLongitudeRef : {tag: cGPSTT, name: "GPSLongitudeRef", id: ExifGpsTagGPSLongitudeRef},
-	ExifGpsTagGPSLongitude : {tag: cGPSTT, name: "GPSLongitude", id: ExifGpsTagGPSLongitude},
-	ExifGpsTagGPSAltitudeRef : {tag: cGPSTT, name: "GPSAltitudeRef", id: ExifGpsTagGPSAltitudeRef},
-	ExifGpsTagGPSAltitude : {tag: cGPSTT, name: "GPSAltitude", id: ExifGpsTagGPSAltitude},
-	ExifGpsTagGPSTimestamp : {tag: cGPSTT, name: "GPSTimestamp", id: ExifGpsTagGPSTimestamp},
-	ExifGpsTagGPSSatellites : {tag: cGPSTT, name: "GPSSatellites", id: ExifGpsTagGPSSatellites},
-	ExifGpsTagGPSStatus : {tag: cGPSTT, name: "GPSStatus", id: ExifGpsTagGPSStatus},
-	ExifGpsTagGPSMeasureMode : {tag: cGPSTT, name: "GPSMeasureMode", id: ExifGpsTagGPSMeasureMode},
-	ExifGpsTagGPSDOP : {tag: cGPSTT, name: "GPSDOP", id: ExifGpsTagGPSDOP},
-	ExifGpsTagGPSSpeedRef : {tag: cGPSTT, name: "GPSSpeedRef", id: ExifGpsTagGPSSpeedRef},
-	ExifGpsTagGPSSpeed : {tag: cGPSTT, name: "GPSSpeed", id: ExifGpsTagGPSSpeed},
-	ExifGpsTagGPSTrackRef : {tag: cGPSTT, name: "GPSTrackRef", id: ExifGpsTagGPSTrackRef},
-	ExifGpsTagGPSTrack : {tag: cGPSTT, name: "GPSTrack", id: ExifGpsTagGPSTrack},
-	ExifGpsTagGPSImgDirectionRef : {tag: cGPSTT, name: "GPSImgDirectionRef", id: ExifGpsTagGPSImgDirectionRef},
-	ExifGpsTagGPSImgDirection : {tag: cGPSTT, name: "GPSImgDirection", id: ExifGpsTagGPSImgDirection},
-	ExifGpsTagGPSMapDatum : {tag: cGPSTT, name: "GPSMapDatum", id: ExifGpsTagGPSMapDatum},
-	ExifGpsTagGPSDestLatitudeRef : {tag: cGPSTT, name: "GPSDestLatitudeRef", id: ExifGpsTagGPSDestLatitudeRef},
-	ExifGpsTagGPSDestLatitude : {tag: cGPSTT, name: "GPSDestLatitude", id: ExifGpsTagGPSDestLatitude},
-	ExifGpsTagGPSDestLongitudeRef : {tag: cGPSTT, name: "GPSDestLongitudeRef", id: ExifGpsTagGPSDestLongitudeRef},
-	ExifGpsTagGPSDestLongitude : {tag: cGPSTT, name: "GPSDestLongitude", id: ExifGpsTagGPSDestLongitude},
-	ExifGpsTagGPSDestBearingRef : {tag: cGPSTT, name: "GPSDestBearingRef", id: ExifGpsTagGPSDestBearingRef},
-	ExifGpsTagGPSDestBearing : {tag: cGPSTT, name: "GPSDestBearing", id: ExifGpsTagGPSDestBearing},
-	ExifGpsTagGPSDestDistanceRef : {tag: cGPSTT, name: "GPSDestDistanceRef", id: ExifGpsTagGPSDestDistanceRef},
-	ExifGpsTagGPSDestDistance : {tag: cGPSTT, name: "GPSDestDistance", id: ExifGpsTagGPSDestDistance},
-	ExifGpsTagGPSProcessingMethod : {tag: cGPSTT, name: "GPSProcessingMethod", id: ExifGpsTagGPSProcessingMethod},
-	ExifGpsTagGPSAreaInformation : {tag: cGPSTT, name: "GPSAreaInformation", id: ExifGpsTagGPSAreaInformation},
-	ExifGpsTagGPSDateStamp : {tag: cGPSTT, name: "GPSDateStamp", id: ExifGpsTagGPSDateStamp},
-	ExifGpsTagGPSDifferential : {tag: cGPSTT, name: "GPSDifferential", id: ExifGpsTagGPSDifferential},
-	ExifGpsTagGPSHPositioningError : {tag: cGPSTT, name: "GPSHPositioningError", id: ExifGpsTagGPSHPositioningError},
+	ExifGpsTagGPSVersionID:         {tag: cIFDGPS, name: "GPSVersionID", id: ExifGpsTagGPSVersionID},
+	ExifGpsTagGPSLatitudeRef:       {tag: cIFDGPS, name: "GPSLatitudeRef", id: ExifGpsTagGPSLatitudeRef},
+	ExifGpsTagGPSLatitude:          {tag: cIFDGPS, name: "GPSLatitude", id: ExifGpsTagGPSLatitude},
+	ExifGpsTagGPSLongitudeRef:      {tag: cIFDGPS, name: "GPSLongitudeRef", id: ExifGpsTagGPSLongitudeRef},
+	ExifGpsTagGPSLongitude:         {tag: cIFDGPS, name: "GPSLongitude", id: ExifGpsTagGPSLongitude},
+	ExifGpsTagGPSAltitudeRef:       {tag: cIFDGPS, name: "GPSAltitudeRef", id: ExifGpsTagGPSAltitudeRef},
+	ExifGpsTagGPSAltitude:          {tag: cIFDGPS, name: "GPSAltitude", id: ExifGpsTagGPSAltitude},
+	ExifGpsTagGPSTimestamp:         {tag: cIFDGPS, name: "GPSTimestamp", id: ExifGpsTagGPSTimestamp},
+	ExifGpsTagGPSSatellites:        {tag: cIFDGPS, name: "GPSSatellites", id: ExifGpsTagGPSSatellites},
+	ExifGpsTagGPSStatus:            {tag: cIFDGPS, name: "GPSStatus", id: ExifGpsTagGPSStatus},
+	ExifGpsTagGPSMeasureMode:       {tag: cIFDGPS, name: "GPSMeasureMode", id: ExifGpsTagGPSMeasureMode},
+	ExifGpsTagGPSDOP:               {tag: cIFDGPS, name: "GPSDOP", id: ExifGpsTagGPSDOP},
+	ExifGpsTagGPSSpeedRef:          {tag: cIFDGPS, name: "GPSSpeedRef", id: ExifGpsTagGPSSpeedRef},
+	ExifGpsTagGPSSpeed:             {tag: cIFDGPS, name: "GPSSpeed", id: ExifGpsTagGPSSpeed},
+	ExifGpsTagGPSTrackRef:          {tag: cIFDGPS, name: "GPSTrackRef", id: ExifGpsTagGPSTrackRef},
+	ExifGpsTagGPSTrack:             {tag: cIFDGPS, name: "GPSTrack", id: ExifGpsTagGPSTrack},
+	ExifGpsTagGPSImgDirectionRef:   {tag: cIFDGPS, name: "GPSImgDirectionRef", id: ExifGpsTagGPSImgDirectionRef},
+	ExifGpsTagGPSImgDirection:      {tag: cIFDGPS, name: "GPSImgDirection", id: ExifGpsTagGPSImgDirection},
+	ExifGpsTagGPSMapDatum:          {tag: cIFDGPS, name: "GPSMapDatum", id: ExifGpsTagGPSMapDatum},
+	ExifGpsTagGPSDestLatitudeRef:   {tag: cIFDGPS, name: "GPSDestLatitudeRef", id: ExifGpsTagGPSDestLatitudeRef},
+	ExifGpsTagGPSDestLatitude:      {tag: cIFDGPS, name: "GPSDestLatitude", id: ExifGpsTagGPSDestLatitude},
+	ExifGpsTagGPSDestLongitudeRef:  {tag: cIFDGPS, name: "GPSDestLongitudeRef", id: ExifGpsTagGPSDestLongitudeRef},
+	ExifGpsTagGPSDestLongitude:     {tag: cIFDGPS, name: "GPSDestLongitude", id: ExifGpsTagGPSDestLongitude},
+	ExifGpsTagGPSDestBearingRef:    {tag: cIFDGPS, name: "GPSDestBearingRef", id: ExifGpsTagGPSDestBearingRef},
+	ExifGpsTagGPSDestBearing:       {tag: cIFDGPS, name: "GPSDestBearing", id: ExifGpsTagGPSDestBearing},
+	ExifGpsTagGPSDestDistanceRef:   {tag: cIFDGPS, name: "GPSDestDistanceRef", id: ExifGpsTagGPSDestDistanceRef},
+	ExifGpsTagGPSDestDistance:      {tag: cIFDGPS, name: "GPSDestDistance", id: ExifGpsTagGPSDestDistance},
+	ExifGpsTagGPSProcessingMethod:  {tag: cIFDGPS, name: "GPSProcessingMethod", id: ExifGpsTagGPSProcessingMethod},
+	ExifGpsTagGPSAreaInformation:   {tag: cIFDGPS, name: "GPSAreaInformation", id: ExifGpsTagGPSAreaInformation},
+	ExifGpsTagGPSDateStamp:         {tag: cIFDGPS, name: "GPSDateStamp", id: ExifGpsTagGPSDateStamp},
+	ExifGpsTagGPSDifferential:      {tag: cIFDGPS, name: "GPSDifferential", id: ExifGpsTagGPSDifferential},
+	ExifGpsTagGPSHPositioningError: {tag: cIFDGPS, name: "GPSHPositioningError", id: ExifGpsTagGPSHPositioningError},
 
 	// Microsoft Windows metadata. Non-standard, but ubiquitous
-	ExifXpTagXPTitle : {tag: cIFD0TT, name: "XPTitle", id: ExifXpTagXPTitle},
-	ExifXpTagXPComment : {tag: cIFD0TT, name: "XPComment", id: ExifXpTagXPComment},
-	ExifXpTagXPAuthor : {tag: cIFD0TT, name: "XPAuthor", id: ExifXpTagXPAuthor},
-	ExifXpTagXPKeywords : {tag: cIFD0TT, name: "XPKeywords", id: ExifXpTagXPKeywords},
-	ExifXpTagXPSubject : {tag: cIFD0TT, name: "XPSubject", id: ExifXpTagXPSubject},
+	ExifXpTagXPTitle:    {tag: cIFDZERO, name: "XPTitle", id: ExifXpTagXPTitle},
+	ExifXpTagXPComment:  {tag: cIFDZERO, name: "XPComment", id: ExifXpTagXPComment},
+	ExifXpTagXPAuthor:   {tag: cIFDZERO, name: "XPAuthor", id: ExifXpTagXPAuthor},
+	ExifXpTagXPKeywords: {tag: cIFDZERO, name: "XPKeywords", id: ExifXpTagXPKeywords},
+	ExifXpTagXPSubject:  {tag: cIFDZERO, name: "XPSubject", id: ExifXpTagXPSubject},
+}
+
+const (
+	cExposureProgram      = 0x00010000
+	cMeteringMode         = 0x00020000
+	cLightSource          = 0x00030000
+	cFlash                = 0x00040000
+	cSensingMethod        = 0x00050000
+	cSceneCaptureType     = 0x00060000
+	cSceneType            = 0x00070000
+	cCustomRendered       = 0x00080000
+	cWhiteBalance         = 0x00090000
+	cGainControl          = 0x000A0000
+	cContrast             = 0x000B0000
+	cSaturation           = 0x000C0000
+	cSharpness            = 0x000D0000
+	cSubjectDistanceRange = 0x000E0000
+	cFileSource           = 0x000F0000
+	cComponents           = 0x00100000
+)
+
+var aExifStringEnums = map[int]string{
+	cExposureProgram + 0: "Not defined",
+	cExposureProgram + 1: "Manual",
+	cExposureProgram + 2: "Normal program",
+	cExposureProgram + 3: "Aperture priority",
+	cExposureProgram + 4: "Shutter priority",
+	cExposureProgram + 5: "Creative program",
+	cExposureProgram + 6: "Action program",
+	cExposureProgram + 7: "Portrait mode",
+	cExposureProgram + 8: "Landscape mode",
+
+	cMeteringMode + 0:   "Unknown",
+	cMeteringMode + 1:   "Average",
+	cMeteringMode + 2:   "CenterWeightedAverage",
+	cMeteringMode + 3:   "Spot",
+	cMeteringMode + 4:   "MultiSpot",
+	cMeteringMode + 5:   "Pattern",
+	cMeteringMode + 6:   "Partial",
+	cMeteringMode + 255: "Other",
+
+	cLightSource + 0:   "Unknown",
+	cLightSource + 1:   "Daylight",
+	cLightSource + 2:   "Fluorescent",
+	cLightSource + 3:   "Tungsten (incandescent light)",
+	cLightSource + 4:   "Flash",
+	cLightSource + 9:   "Fine weather",
+	cLightSource + 10:  "Cloudy weather",
+	cLightSource + 11:  "Shade",
+	cLightSource + 12:  "Daylight fluorescent (D 5700 - 7100K)",
+	cLightSource + 13:  "Day white fluorescent (N 4600 - 5400K)",
+	cLightSource + 14:  "Cool white fluorescent (W 3900 - 4500K)",
+	cLightSource + 15:  "White fluorescent (WW 3200 - 3700K)",
+	cLightSource + 17:  "Standard light A",
+	cLightSource + 18:  "Standard light B",
+	cLightSource + 19:  "Standard light C",
+	cLightSource + 20:  "D55",
+	cLightSource + 21:  "D65",
+	cLightSource + 22:  "D75",
+	cLightSource + 23:  "D50",
+	cLightSource + 24:  "ISO studio tungsten",
+	cLightSource + 255: "Other",
+
+	cFlash + 0x0000: "Flash did not fire",
+	cFlash + 0x0001: "Flash fired",
+	cFlash + 0x0005: "Strobe return light not detected",
+	cFlash + 0x0007: "Strobe return light detected",
+	cFlash + 0x0009: "Flash fired, compulsory flash mode",
+	cFlash + 0x000D: "Flash fired, compulsory flash mode, return light not detected",
+	cFlash + 0x000F: "Flash fired, compulsory flash mode, return light detected",
+	cFlash + 0x0010: "Flash did not fire, compulsory flash mode",
+	cFlash + 0x0018: "Flash did not fire, auto mode",
+	cFlash + 0x0019: "Flash fired, auto mode",
+	cFlash + 0x001D: "Flash fired, auto mode, return light not detected",
+	cFlash + 0x001F: "Flash fired, auto mode, return light detected",
+	cFlash + 0x0020: "No flash function",
+	cFlash + 0x0041: "Flash fired, red-eye reduction mode",
+	cFlash + 0x0045: "Flash fired, red-eye reduction mode, return light not detected",
+	cFlash + 0x0047: "Flash fired, red-eye reduction mode, return light detected",
+	cFlash + 0x0049: "Flash fired, compulsory flash mode, red-eye reduction mode",
+	cFlash + 0x004D: "Flash fired, compulsory flash mode, red-eye reduction mode, return light not detected",
+	cFlash + 0x004F: "Flash fired, compulsory flash mode, red-eye reduction mode, return light detected",
+	cFlash + 0x0059: "Flash fired, auto mode, red-eye reduction mode",
+	cFlash + 0x005D: "Flash fired, auto mode, return light not detected, red-eye reduction mode",
+	cFlash + 0x005F: "Flash fired, auto mode, return light detected, red-eye reduction mode",
+
+	cSensingMethod + 1: "Not defined",
+	cSensingMethod + 2: "One-chip color area sensor",
+	cSensingMethod + 3: "Two-chip color area sensor",
+	cSensingMethod + 4: "Three-chip color area sensor",
+	cSensingMethod + 5: "Color sequential area sensor",
+	cSensingMethod + 7: "Trilinear sensor",
+	cSensingMethod + 8: "Color sequential linear sensor",
+
+	cSceneCaptureType + 0: "Standard",
+	cSceneCaptureType + 1: "Landscape",
+	cSceneCaptureType + 2: "Portrait",
+	cSceneCaptureType + 3: "Night scene",
+
+	cSceneType + 1: "Directly photographed",
+
+	cCustomRendered + 0: "Normal process",
+	cCustomRendered + 1: "Custom process",
+
+	cWhiteBalance + 0: "Auto white balance",
+	cWhiteBalance + 1: "Manual white balance",
+
+	cGainControl + 0: "None",
+	cGainControl + 1: "Low gain up",
+	cGainControl + 2: "High gain up",
+	cGainControl + 3: "Low gain down",
+	cGainControl + 4: "High gain down",
+
+	cContrast + 0: "Normal",
+	cContrast + 1: "Soft",
+	cContrast + 2: "Hard",
+
+	cSaturation + 0: "Normal",
+	cSaturation + 1: "Low saturation",
+	cSaturation + 2: "High saturation",
+
+	cSharpness + 0: "Normal",
+	cSharpness + 1: "Soft",
+	cSharpness + 2: "Hard",
+
+	cSubjectDistanceRange + 0: "Unknown",
+	cSubjectDistanceRange + 1: "Macro",
+	cSubjectDistanceRange + 2: "Close view",
+	cSubjectDistanceRange + 3: "Distant view",
+
+	cFileSource + 3: "DSC",
+
+	cComponents + 0: "",
+	cComponents + 1: "Y",
+	cComponents + 2: "Cb",
+	cComponents + 3: "Cr",
+	cComponents + 4: "R",
+	cComponents + 5: "G",
+	cComponents + 6: "B",
 }

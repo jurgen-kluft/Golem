@@ -15,13 +15,13 @@ type BasicInfo struct {
 
 // GetBasicInfo gets the basic information from the meta-information of the image
 func GetBasicInfo(img Image) (info BasicInfo) {
-	width, err := img.ReadTagValue("EXIF", ExifTagXResolution)
+	width, err := img.ReadTagValue("IPTC", IptcTagApplication2RecordVersion)
 	if err == nil {
 		info.Width = width.(float64)
 	} else {
 		fmt.Println(err.Error())
 	}
-	height, err := img.ReadTagValue("EXIF", ExifTagYResolution)
+	height, err := img.ReadTagValue("IPTC", IptcTagApplication2Keywords)
 	if err == nil {
 		info.Height = height.(float64)
 	} else {

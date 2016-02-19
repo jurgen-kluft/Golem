@@ -2,7 +2,74 @@ package ImgMeta
 
 import (
 	"encoding/binary"
+	"fmt"
 )
+
+/*
+Structure of a Photoshop-style APP13 segment
+
+The Adobe's Photoshop program, a de-facto standard for image manipulation, uses the APP13 segment for storing non-graphic
+information, such as layers, paths, IPTC data and more. The unit for this kind of information is called a "resource data block"
+(because they hold data that was stored in the Macintosh's resource fork in early versions of Photoshop).
+The content of an APP13 segment is formed by an identifier string (usually "Photoshop 3.0\000", but also 'Adobe_Photoshop2.5:',
+used by earlier versions, is accepted; in this case some additional undocumented bytes are read (resolution info?) and saved in
+a root 'Resolution' record) followed by a sequence of resource data blocks; a resource block has the following structure:
+
+    [Record name]    [size]   [description]
+    ---------------------------------------
+    (Type)           4 bytes  Photoshop uses '8BIM' from ver 4.0 on
+    (ID)             2 bytes  a unique identifier, e.g., "\004\004" for IPTC
+    (Name)             ...    a Pascal string (padded to make size even)
+    (Size)           4 bytes  actual size of resource data
+    (Data)             ...    resource data, padded to make size even
+
+(a Pascal string is made up of a single byte, giving the string length, followed by the string itself, padded to make size
+even including the length byte; since the string length is explicit, there is no need of a terminating null character).
+The signature (type) is usually '8BIM', but Photoshop used '8BPS' up to version 3.0, and some rogue program (Adobe PhotoDeluxe?)
+is using 'PHUT' ("PHotoshop User Tags" ?) for path information (ID=7d0-bb7). Valid Image Resource IDs are listed in the
+Photoshop-style tags' list section. In general a resource block contains only a few bytes, but there is an important block,
+the IPTC block, which can be quite large; the structure of this block is analysed in more detail in the IPTC data block section.
+
+*/
+
+/*
+Structure of an IPTC data block
+
+An IPTC/NAA resource data block of a Photoshop-style APP13 segment embeds an IPTC stream conforming to the standard defined by
+the International Press and Telecommunications Council (IPTC) and the Newspaper Association of America (NAA) for exchanging
+interoperability information related to various news objects. The data part of a resource block, an IPTC stream, is simply a
+sequence of units called datasets; no preamble nor count is present. Each dataset consists of a unique tag header and a data
+field (the list of valid tags [dataset numbers] can be found in section about IPTC data). A standard tag header is used when
+the data field size is less than 32768 bytes; otherwise, an extended tag header is used. The datasets do not need to show up
+in numerical order according to their tag. The structure of a dataset is:
+
+    [Record name]    [size]   [description]
+    ---------------------------------------
+    (Tag marker)     1 byte   this must be 0x1c
+    (Record number)  1 byte   always 2 for 2:xx datasets
+    (Dataset number) 1 byte   this is what we call a "tag"
+    (Size specifier) 2 bytes  data length (< 32768 bytes) or length of ...
+    (Size specifier)  ...     data length (> 32767 bytes only)
+    (Data)            ...     (its length is specified before)
+
+So, standard datasets have a 5 bytes tag header; the last two bytes in the header contain the data field length, the most
+significant bit being always 0. For extended datasets instead, these two bytes contain the length of the (following) data
+field length, the most significant bit being always 1. The value of the most significant bit thus distinguishes "standard"
+from "extended"; in digital photographies, I assume that the datasets which are actually used (a subset of the standard) are
+always standard; therefore, we likely do not have the IPTC block spanning more than one APP13 segment. The record types
+defined by the IPTC-NAA standard are the following (but the "pseudo"-standard by Adobe for APP13 IPTC data is restricted to
+the first application record, 2:xx, and sometimes to the envelope record, 1:xx, I believe, because everything else can be
+accomodated more simply by other JPEG Segments):
+
+    [Record name]                [dataset record number]
+    ----------------------------------------------------
+    Object Envelop Record                 1:xx
+    Application Records:             2:xx through 6:xx
+    Pre-ObjectData Descriptor Record:     7:xx
+    ObjectData Record:                    8:xx
+    Post-ObjectData Descriptor Record:    9:xx
+
+*/
 
 type tIPTCAPP struct {
 	name   string
@@ -14,7 +81,6 @@ type tIPTCAPP struct {
 func (t tIPTCAPP) Name() string {
 	return t.name
 }
-
 func (t tIPTCAPP) Marker() uint16 {
 	return t.endian.Uint16(t.block)
 }
@@ -35,7 +101,31 @@ func (t tIPTCAPP) HasID(cid []byte) bool {
 	return true
 }
 
-func (t tIPTCAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
+type tIPTCHeader struct {
+	block []byte
+}
+
+func (t tIPTCHeader) Has8BIM() bool {
+	return t.block[0] == '8' && t.block[1] == 'B' && (t.block[2] == 'I' || t.block[2] == 'P') && (t.block[3] == 'M' || t.block[3] == 'S')
+}
+func (t tIPTCHeader) HasIPTCID() bool {
+	return t.block[5] == 4 && t.block[6] == 4
+}
+func (t tIPTCHeader) NameLen() uint32 {
+	return uint32(t.block[7])
+}
+func (t tIPTCHeader) NameLen() uint32 {
+	return uint32(t.block[7])
+}
+
+func (t tIPTCAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
+	fmt.Printf("IPTC, marker:")
+
+	for i := 0; i < 10; i++ {
+		b := t.block[14+4+i]
+		fmt.Printf("%X ", b)
+	}
+	fmt.Printf("\n")
 	return int(0), &exifError{"Reading IPTC tag value failed"}
 }
 

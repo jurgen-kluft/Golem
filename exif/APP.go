@@ -205,7 +205,7 @@ type APP interface {
 	Length() uint16
 	ID([]byte) []byte
 	HasID([]byte) bool
-	ReadValue(uint16) (interface{}, error)
+	ReadValue(uint32) (interface{}, error)
 }
 
 type tAPP struct {
@@ -238,7 +238,7 @@ func (t tAPP) HasID(cid []byte) bool {
 func (t tAPP) Name() string {
 	return t.name
 }
-func (t tAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
+func (t tAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
 	fmt.Printf("Read value of tag:0x%X in APP:BASIC\n", tagID2Find)
 	return int(0), nil
 }
