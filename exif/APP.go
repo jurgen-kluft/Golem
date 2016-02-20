@@ -114,9 +114,8 @@ func fAPPReadICCPROFILE(app *tAPP) (err error) {
 }
 
 func fAPPReadAPP2(marker uint16, reader *JpegReader) (a APP, err error) {
-	app := &tAPP{}
+	app := &tAPP{offset: 10}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
-	app.offset = 10
 	if app.HasID(idAPP2) {
 		return app, fAPPReadICCPROFILE(app)
 	}
@@ -124,10 +123,8 @@ func fAPPReadAPP2(marker uint16, reader *JpegReader) (a APP, err error) {
 }
 
 func fAPPReadIPTC(marker uint16, reader *JpegReader) (a APP, err error) {
-	app := &tIPTCAPP{name: "IPTC"}
+	app := &tIPTCAPP{name: "IPTC", offset: 10, endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
-	app.offset = 10
-	app.endian = binary.BigEndian
 	if app.HasID(idIPTC) {
 		return app, nil
 	}
