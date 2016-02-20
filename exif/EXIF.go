@@ -67,14 +67,13 @@ in the lower end of the 4-byte area (smaller offsets).
 // ============================================== EXIF =======================================================
 
 type tEXIFAPP struct {
-	name   string
 	offset uint64           // Offset of this APP in the file
 	endian binary.ByteOrder // TIFF-Header, Byte-Order
 	block  []byte           // full APP block
 }
 
 func (t tEXIFAPP) Name() string {
-	return t.name
+	return "EXIF"
 }
 func (t tEXIFAPP) Marker() uint16 {
 	return t.endian.Uint16(t.block)
@@ -114,7 +113,7 @@ type ifdOffsetItem struct {
 	ifdType uint16
 }
 
-func (t tEXIFAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
+func (t tEXIFAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
 	//fmt.Printf("Read value of tag:0x%X in APP:EXIF\n", tagID2Find)
 
 	tiffOffset := uint32(10)
@@ -139,7 +138,7 @@ func (t tEXIFAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
 			tagID := tag.TagID()
 
 			//fmt.Printf("Checking tag:0x%X at index:%d\n", tagID, i)
-			if uint32(tagID) == tagID2Find {
+			if tagID == tagID2Find {
 				//fmt.Printf("Found tag:0x%X in APP:EXIF at index %d\n", tagID, i)
 				return ifd.ReadValue(tag)
 			}

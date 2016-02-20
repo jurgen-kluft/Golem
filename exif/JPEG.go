@@ -57,7 +57,7 @@ func ReadJpeg(fhnd *os.File) (image Image, err error) {
 			if app == nil {
 				break
 			}
-			fmt.Printf("Registering APP %s\n", app.Name())
+			fmt.Printf("Registering APP %s, Length:%v\n", app.Name(), app.Length())
 			image.apps[app.Name()] = app
 
 		} else {

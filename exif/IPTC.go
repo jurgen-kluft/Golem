@@ -72,14 +72,13 @@ accomodated more simply by other JPEG Segments):
 */
 
 type tIPTCAPP struct {
-	name   string
 	offset uint64           // Offset of this APP in the file
 	endian binary.ByteOrder // Byte-Order
 	block  []byte           // full APP block
 }
 
 func (t tIPTCAPP) Name() string {
-	return t.name
+	return "IPTC"
 }
 func (t tIPTCAPP) Marker() uint16 {
 	return t.endian.Uint16(t.block)
@@ -106,29 +105,40 @@ type tIPTCHeader struct {
 	endian binary.ByteOrder // Byte-Order
 }
 
-func (t tIPTCHeader) Has8BIM() bool {
-	return t.block[0] == '8' && t.block[1] == 'B' && (t.block[2] == 'I' || t.block[2] == 'P') && (t.block[3] == 'M' || t.block[3] == 'S')
+func (t tIPTCHeader) HasValidHeader() bool {
+	return len(t.block) > 8 && t.block[0] == '8' && t.block[1] == 'B' && (t.block[2] == 'I' || t.block[2] == 'P') && (t.block[3] == 'M' || t.block[3] == 'S') && t.block[4] == 4
 }
-func (t tIPTCHeader) HasIPTCID() bool {
-	return t.block[4] == 4 && t.block[5] == 4
+func (t tIPTCHeader) HasIPTCRecords() bool {
+	return t.block[5] == 0x04
+}
+func (t tIPTCHeader) HasChecksum() bool {
+	return t.block[5] == 0x25
 }
 func (t tIPTCHeader) NameLen() uint32 {
-	l := uint32(t.block[6]) | 1
+	l := uint32(t.block[6])
 	return uint32(l)
 }
 func (t tIPTCHeader) Name() string {
-	if t.NameLen() > 1 {
-		return string(t.block[7 : 7+t.NameLen()-1])
-	}
-	return "Unknown"
+	return string(t.block[7 : 7+t.NameLen()])
 }
-func (t tIPTCHeader) Size() uint32 {
-	offset := 7 + t.NameLen()
+func (t tIPTCHeader) RecordSize() uint32 {
+	offset := 4 + 2 + 1 + (t.NameLen() | 1)
 	return t.endian.Uint32(t.block[offset:])
 }
 func (t tIPTCHeader) RecordReader() (r tIPTCRecordReader) {
-	offset := 7 + t.NameLen() + 4
-	return tIPTCRecordReader{block: t.block[offset : offset+t.Size()], endian: t.endian, cursor: 0}
+	offset := 4 + 2 + 1 + (t.NameLen() | 1) + 4
+	return tIPTCRecordReader{block: t.block[offset : offset+t.RecordSize()], endian: t.endian, cursor: 0}
+}
+func (t tIPTCHeader) Next() tIPTCHeader {
+	move := uint32(4) + 2 + 1 + (t.NameLen() | 1) + 4 + t.RecordSize()
+	move = (move + 1) & 0xfffe
+	return tIPTCHeader{block: t.block[move:], endian: t.endian}
+}
+func (t tIPTCHeader) printData() {
+	for _, b := range t.block {
+		fmt.Printf("%02X ", b)
+	}
+	fmt.Printf("\n")
 }
 
 type tIPTCRecordReader struct {
@@ -149,35 +159,80 @@ func (t tIPTCRecordReader) RecordNumber() byte {
 func (t tIPTCRecordReader) DatasetNumber() byte {
 	return t.block[t.cursor+2]
 }
-func (t tIPTCRecordReader) Size() uint16 {
-	return 5 + t.endian.Uint16(t.block[t.cursor+3:])&uint16(0x7FFF)
+func (t tIPTCRecordReader) DataSize() uint32 {
+	return uint32(t.endian.Uint16(t.block[t.cursor+3:])) & uint32(0x7FFF)
 }
-func (t *tIPTCRecordReader) Next() bool {
-	t.cursor += uint32(t.Size())
-	return t.cursor < uint32(len(t.block))
+func (t tIPTCRecordReader) size() uint32 {
+	return 5 + t.DataSize()
 }
-
-func (t tIPTCAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
-	fmt.Printf("IPTC, marker:")
-
-	// @WORK IN PROGRESS
-	iptcHeader := tIPTCHeader{block: t.block[18:], endian: t.endian}
-	if !iptcHeader.Has8BIM() || !iptcHeader.HasIPTCID() {
-		return nil, &exifError{"IPTC DataSet has wrong header"}
+func (t tIPTCRecordReader) data() []byte {
+	offset := t.cursor + 5
+	size := t.DataSize()
+	return t.block[offset : offset+size]
+}
+func (t tIPTCRecordReader) printData() {
+	offset := t.cursor + 5
+	size := t.DataSize() + 4
+	for _, b := range t.block[offset : offset+size] {
+		fmt.Printf("%02X ", b)
 	}
-	fmt.Printf("IPTC Header, name:%s, size:%v\n", iptcHeader.Name(), iptcHeader.Size())
+	fmt.Printf("\n")
+}
 
-	recordReader := iptcHeader.RecordReader()
-	for recordReader.IsRecord() {
-		fieldID := uint16(recordReader.RecordNumber())<<8 | uint16(recordReader.DatasetNumber())
-		field, ok := aIPTCFields[fieldID]
-		if ok {
-			fieldName := field.tagTypeID
-			fmt.Printf("Record name:%s, size:%d, record number:0x%X, dataset number:0x%X\n", fieldName, recordReader.Size(), recordReader.RecordNumber(), recordReader.DatasetNumber())
-		} else {
-			fmt.Printf("Record name:%s, size:%d, record number:0x%X, dataset number:0x%X\n", "not found", recordReader.Size(), recordReader.RecordNumber(), recordReader.DatasetNumber())
+/*
+const (
+	IptcFieldTypeShort     uint16 = iota
+	IptcFieldTypeString    uint16 = iota
+	IptcFieldTypeDate      uint16 = iota
+	IptcFieldTypeTime      uint16 = iota
+	IptcFieldTypeUndefined uint16 = iota
+)
+*/
+
+func (t tIPTCRecordReader) ReadShort() int16 {
+	data := t.data()
+	return int16(t.endian.Uint16(data))
+}
+func (t tIPTCRecordReader) ReadString() string {
+	data := t.data()
+	return string(data)
+}
+
+func (t *tIPTCRecordReader) Next() {
+	t.cursor += uint32(t.size())
+}
+
+func (t tIPTCAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
+
+	// Skip the IPTC APP13 header (18 bytes)
+	iptcHeader := tIPTCHeader{block: t.block[18:], endian: t.endian}
+
+	// Valid header == 0x38 0x42 0x49 0x4d 0x04
+	for iptcHeader.HasValidHeader() {
+		fmt.Printf("IPTC Header, name:%s, size:%v\n", iptcHeader.Name(), iptcHeader.RecordSize())
+
+		// @NOTE: There seem to be a lot of different IPTC record types, the only one
+		// that contains records is the 0x04 one (0x38 0x42 0x49 0x4d 0x04 0x04).
+		if iptcHeader.HasIPTCRecords() {
+			recordReader := iptcHeader.RecordReader()
+			for recordReader.IsRecord() {
+				fieldID := uint16(recordReader.RecordNumber())<<8 | uint16(recordReader.DatasetNumber())
+				field, ok := aIPTCFields[fieldID]
+				if ok {
+					if fieldID == tagID2Find {
+						if field.fieldTypeID == IptcFieldTypeShort {
+							return recordReader.ReadShort(), nil
+						} else if field.fieldTypeID == IptcFieldTypeString {
+							return recordReader.ReadString(), nil
+						}
+					}
+				} else {
+					return nil, &exifError{fmt.Sprintf("IPTC record with id:0x%02X is not listed in our embedded map", fieldID)}
+				}
+				recordReader.Next()
+			}
 		}
-		recordReader.Next()
+		iptcHeader = iptcHeader.Next()
 	}
 
 	return int(0), &exifError{"Reading IPTC tag value failed"}

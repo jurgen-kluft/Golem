@@ -19,5 +19,5 @@ func main() {
 	}
 
 	basicInfo := ImgMeta.GetBasicInfo(image)
-	fmt.Printf("Image: width:%f, height:%f\n", basicInfo.Width, basicInfo.Height)
+	fmt.Printf("Image: width:%v, height:%v\n", basicInfo.Width, basicInfo.Height)
 }

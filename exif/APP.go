@@ -25,14 +25,6 @@ const (
 	cIFDINTEROP uint16 = 0xa005
 )
 
-type tAPPReader func(uint16, *JpegReader) (APP, error)
-
-type tAPPSegment struct {
-	name   string
-	marker uint16
-	reader tAPPReader
-}
-
 func fAPPReadBlock(marker uint16, reader *JpegReader, extra uint32) (appblock []byte, err error) {
 	appLength := uint16(0)
 	binary.Read(reader, binary.BigEndian, &appLength)
@@ -53,10 +45,8 @@ func fAPPReadBlock(marker uint16, reader *JpegReader, extra uint32) (appblock []
 
 func fAPPReadComment(marker uint16, reader *JpegReader) (a APP, err error) {
 	//fmt.Print("APP:COMMENT = ")
-	app := &tAPP{}
-	app.name = "COMMENT"
+	app := &tAPP{offset: 0, endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
-	app.offset = 10
 	comment := string(app.block[4:])
 	fmt.Println(comment)
 	return app, nil
@@ -64,20 +54,17 @@ func fAPPReadComment(marker uint16, reader *JpegReader) (a APP, err error) {
 
 func fAPPReadJFIF(app *tAPP) (err error) {
 	//fmt.Printf("APP:JFIF (length: %d)\n", len(app.block))
-	app.name = "JFIF"
 	return nil
 }
 
 func fAPPReadJFXX(app *tAPP) (err error) {
 	//fmt.Printf("APP:JFXX (length: %d)\n", len(app.block))
-	app.name = "JFXX"
 	return nil
 }
 
 func fAPPReadJF(marker uint16, reader *JpegReader) (a APP, err error) {
-	app := &tAPP{}
+	app := &tAPP{offset: 10, endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
-	app.offset = 10
 	if app.HasID(idJFIF) {
 		return app, fAPPReadJFIF(app)
 	} else if app.HasID(idJFXX) {
@@ -86,24 +73,15 @@ func fAPPReadJF(marker uint16, reader *JpegReader) (a APP, err error) {
 	return app, &exifError{"APP0 has wrong identifier, should be 'JFIF' or 'JFXX'"}
 }
 
-func fAPPReadXMP(app tAPP) (err error) {
-	//fmt.Printf("APP:XMP (length: %d)\n", len(app.block))
-	return nil
-}
-
 // EXIF or XMP
 func fAPPReadAPP1(marker uint16, reader *JpegReader) (a APP, err error) {
-	var app tAPP
-	app.offset = reader.pos()
+	app := &tAPP{offset: reader.pos(), endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
 	if app.HasID(idEXIF) {
-		exif := tEXIFAPP{name: "EXIF"}
-		exif.block = app.block
-		exif.offset = app.offset
+		exif := &tEXIFAPP{block: app.block, offset: app.offset}
 		return exif, err
 	} else if app.HasID(idXMP) {
-		app.name = "XMP"
-		return app, fAPPReadXMP(app)
+		return app, nil
 	}
 	return app, &exifError{"APP1 has wrong identifier, should be 'EXIF' or 'XMP'"}
 }
@@ -114,7 +92,7 @@ func fAPPReadICCPROFILE(app *tAPP) (err error) {
 }
 
 func fAPPReadAPP2(marker uint16, reader *JpegReader) (a APP, err error) {
-	app := &tAPP{offset: 10}
+	app := &tAPP{offset: 10, endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
 	if app.HasID(idAPP2) {
 		return app, fAPPReadICCPROFILE(app)
@@ -123,29 +101,31 @@ func fAPPReadAPP2(marker uint16, reader *JpegReader) (a APP, err error) {
 }
 
 func fAPPReadIPTC(marker uint16, reader *JpegReader) (a APP, err error) {
-	app := &tIPTCAPP{name: "IPTC", offset: 10, endian: binary.BigEndian}
+	app := &tIPTCAPP{offset: 10, endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
 	if app.HasID(idIPTC) {
+		//fmt.Printf("APP:IPTC (length: %d)\n", len(app.block))
 		return app, nil
 	}
 	return app, &exifError{"APP13 has wrong identifier, should be 'Photoshop 3.0\000'"}
 }
 
 func fAPPReadIgnore(marker uint16, reader *JpegReader) (a APP, err error) {
-	var app tAPP
+	app := &tAPP{offset: 10, endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
-	app.offset = 10
-
-	app.name = fmt.Sprintf("0x%X", marker)
-
-	// ignore
-	//fmt.Printf("APP:[ignore] (length: %d)\n", len(app.block))
-
 	return app, nil
 }
 
 func fAPPEnd(marker uint16, reader *JpegReader) (a APP, err error) {
 	return nil, nil
+}
+
+type tAPPReader func(uint16, *JpegReader) (APP, error)
+
+type tAPPSegment struct {
+	name   string
+	marker uint16
+	reader tAPPReader
 }
 
 var aSegments = map[uint16]tAPPSegment{
@@ -203,17 +183,27 @@ type APP interface {
 	Length() uint16
 	ID([]byte) []byte
 	HasID([]byte) bool
-	ReadValue(uint32) (interface{}, error)
+	ReadValue(uint16) (interface{}, error)
 }
 
 type tAPP struct {
-	name   string
 	offset uint64           // Offset of this APP in the file
 	endian binary.ByteOrder // TIFF-Header, Byte-Order
 	block  []byte           // full APP block
 }
 
+func (t tAPP) Name() string {
+	marker := t.Marker()
+	seg, ok := aSegments[marker]
+	if !ok {
+		return fmt.Sprintf("0x%X", t.Marker())
+	}
+	return seg.name
+}
 func (t tAPP) Marker() uint16 {
+	if t.block == nil || len(t.block) < 2 {
+		return 0
+	}
 	return t.endian.Uint16(t.block)
 }
 func (t tAPP) Length() uint16 {
@@ -233,10 +223,7 @@ func (t tAPP) HasID(cid []byte) bool {
 	return true
 }
 
-func (t tAPP) Name() string {
-	return t.name
-}
-func (t tAPP) ReadValue(tagID2Find uint32) (interface{}, error) {
+func (t tAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
 	fmt.Printf("Read value of tag:0x%X in APP:BASIC\n", tagID2Find)
 	return int(0), nil
 }
