@@ -110,6 +110,13 @@ func fAPPReadIPTC(marker uint16, reader *JpegReader) (a APP, err error) {
 	return app, &exifError{"APP13 has wrong identifier, should be 'Photoshop 3.0\000'"}
 }
 
+func fAPPReadSOF0(marker uint16, reader *JpegReader) (a APP, err error) {
+	app := &tSOFnAPP{marker: marker, endian: binary.BigEndian}
+	app.block, err = fAPPReadBlock(marker, reader, 0)
+	return app, nil
+
+}
+
 func fAPPReadIgnore(marker uint16, reader *JpegReader) (a APP, err error) {
 	app := &tAPP{offset: 10, endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
@@ -138,16 +145,16 @@ var aSegments = map[uint16]tAPPSegment{
 	cMETA: {name: "META", marker: cMETA, reader: fAPPReadIgnore},
 	cIPTC: {name: "IPTC", marker: cIPTC, reader: fAPPReadIPTC},
 
-	cSOF0:     {name: "cSOF0", marker: cSOF0, reader: fAPPReadIgnore},
-	cSOF1:     {name: "cSOF1", marker: cSOF1, reader: fAPPReadIgnore},
-	cSOF1 + 1: {name: "cSOF2", marker: cSOF1 + 1, reader: fAPPReadIgnore},
-	cSOF1 + 2: {name: "cSOF3", marker: cSOF1 + 2, reader: fAPPReadIgnore},
-	cSOF1 + 4: {name: "cSOF5", marker: cSOF1 + 4, reader: fAPPReadIgnore},
-	cSOF1 + 5: {name: "cSOF6", marker: cSOF1 + 5, reader: fAPPReadIgnore},
-	cSOF1 + 6: {name: "cSOF7", marker: cSOF1 + 6, reader: fAPPReadIgnore},
-	cSOF1 + 8: {name: "cSOF9", marker: cSOF1 + 8, reader: fAPPReadIgnore},
-	cSOF1 + 9: {name: "cSOF10", marker: cSOF1 + 9, reader: fAPPReadIgnore},
-	cSOF11:    {name: "cSOF11", marker: cSOF11, reader: fAPPReadIgnore},
+	cSOF0:     {name: "SOF0", marker: cSOF0, reader: fAPPReadSOF0},
+	cSOF1:     {name: "SOF1", marker: cSOF1, reader: fAPPReadIgnore},
+	cSOF1 + 1: {name: "SOF2", marker: cSOF1 + 1, reader: fAPPReadIgnore},
+	cSOF1 + 2: {name: "SOF3", marker: cSOF1 + 2, reader: fAPPReadIgnore},
+	cSOF1 + 4: {name: "SOF5", marker: cSOF1 + 4, reader: fAPPReadIgnore},
+	cSOF1 + 5: {name: "SOF6", marker: cSOF1 + 5, reader: fAPPReadIgnore},
+	cSOF1 + 6: {name: "SOF7", marker: cSOF1 + 6, reader: fAPPReadIgnore},
+	cSOF1 + 8: {name: "SOF9", marker: cSOF1 + 8, reader: fAPPReadIgnore},
+	cSOF1 + 9: {name: "SOF10", marker: cSOF1 + 9, reader: fAPPReadIgnore},
+	cSOF11:    {name: "SOF11", marker: cSOF11, reader: fAPPReadIgnore},
 
 	cDHT: {name: "cDHT", marker: cDHT, reader: fAPPReadIgnore},
 	cDAC: {name: "cDAC", marker: cDAC, reader: fAPPReadIgnore},

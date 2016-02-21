@@ -3,6 +3,7 @@ package ImgMeta
 import (
 	"encoding/binary"
 	"fmt"
+	"time"
 )
 
 /*
@@ -169,6 +170,15 @@ func (t tIPTCRecordReader) ReadString() string {
 	data := t.RecordData()
 	return string(data)
 }
+func (t tIPTCRecordReader) ReadDate() time.Time {
+	//data := t.RecordData()
+	// CCYYMMDD
+	return time.Now()
+}
+func (t tIPTCRecordReader) ReadTime() time.Time {
+	//data := t.RecordData()
+	return time.Now()
+}
 
 func (t *tIPTCRecordReader) Next() {
 	t.cursor += uint32(t.RecordSize())
@@ -191,13 +201,26 @@ func (t tIPTCAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
 				fieldID := uint16(recordReader.RecordNumber())<<8 | uint16(recordReader.DatasetNumber())
 				field, ok := aIPTCFields[fieldID]
 				if ok {
-					if fieldID == tagID2Find {
-						if field.fieldTypeID == IptcFieldTypeShort {
-							return recordReader.ReadShort(), nil
-						} else if field.fieldTypeID == IptcFieldTypeString {
-							return recordReader.ReadString(), nil
-						}
+					if field.fieldTypeID == IptcFieldTypeShort {
+						fmt.Printf("IPTC tag:%v, type:'short', value:%v\n", fieldID, recordReader.ReadShort())
+					} else if field.fieldTypeID == IptcFieldTypeString {
+						fmt.Printf("IPTC tag:%v, type:'string', value:%v\n", fieldID, recordReader.ReadString())
+					} else if field.fieldTypeID == IptcFieldTypeDate {
+						fmt.Printf("IPTC tag:%v, type:'date', value:%v\n", fieldID, recordReader.ReadDate())
+					} else if field.fieldTypeID == IptcFieldTypeTime {
+						fmt.Printf("IPTC tag:%v, type:'time', value:%v\n", fieldID, recordReader.ReadTime())
 					}
+					//if fieldID == tagID2Find {
+					//	if field.fieldTypeID == IptcFieldTypeShort {
+					//		return recordReader.ReadShort(), nil
+					//	} else if field.fieldTypeID == IptcFieldTypeString {
+					//		return recordReader.ReadString(), nil
+					//	} else if field.fieldTypeID == IptcFieldTypeDate {
+					//		return recordReader.ReadDate(), nil
+					//	} else if field.fieldTypeID == IptcFieldTypeTime {
+					//		return recordReader.ReadTime(), nil
+					//	}
+					//}
 				} else {
 					return nil, &exifError{fmt.Sprintf("IPTC record with id:0x%02X is not listed in our embedded map", fieldID)}
 				}
