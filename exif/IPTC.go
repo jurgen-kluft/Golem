@@ -30,9 +30,6 @@ is using 'PHUT' ("PHotoshop User Tags" ?) for path information (ID=7d0-bb7). Val
 Photoshop-style tags' list section. In general a resource block contains only a few bytes, but there is an important block,
 the IPTC block, which can be quite large; the structure of this block is analysed in more detail in the IPTC data block section.
 
-*/
-
-/*
 Structure of an IPTC data block
 
 An IPTC/NAA resource data block of a Photoshop-style APP13 segment embeds an IPTC stream conforming to the standard defined by
@@ -134,12 +131,6 @@ func (t tIPTCHeader) Next() tIPTCHeader {
 	move = (move + 1) & 0xfffe
 	return tIPTCHeader{block: t.block[move:], endian: t.endian}
 }
-func (t tIPTCHeader) printData() {
-	for _, b := range t.block {
-		fmt.Printf("%02X ", b)
-	}
-	fmt.Printf("\n")
-}
 
 type tIPTCRecordReader struct {
 	block  []byte
@@ -162,44 +153,25 @@ func (t tIPTCRecordReader) DatasetNumber() byte {
 func (t tIPTCRecordReader) DataSize() uint32 {
 	return uint32(t.endian.Uint16(t.block[t.cursor+3:])) & uint32(0x7FFF)
 }
-func (t tIPTCRecordReader) size() uint32 {
+func (t tIPTCRecordReader) RecordSize() uint32 {
 	return 5 + t.DataSize()
 }
-func (t tIPTCRecordReader) data() []byte {
+func (t tIPTCRecordReader) RecordData() []byte {
 	offset := t.cursor + 5
 	size := t.DataSize()
 	return t.block[offset : offset+size]
 }
-func (t tIPTCRecordReader) printData() {
-	offset := t.cursor + 5
-	size := t.DataSize() + 4
-	for _, b := range t.block[offset : offset+size] {
-		fmt.Printf("%02X ", b)
-	}
-	fmt.Printf("\n")
-}
-
-/*
-const (
-	IptcFieldTypeShort     uint16 = iota
-	IptcFieldTypeString    uint16 = iota
-	IptcFieldTypeDate      uint16 = iota
-	IptcFieldTypeTime      uint16 = iota
-	IptcFieldTypeUndefined uint16 = iota
-)
-*/
-
 func (t tIPTCRecordReader) ReadShort() int16 {
-	data := t.data()
+	data := t.RecordData()
 	return int16(t.endian.Uint16(data))
 }
 func (t tIPTCRecordReader) ReadString() string {
-	data := t.data()
+	data := t.RecordData()
 	return string(data)
 }
 
 func (t *tIPTCRecordReader) Next() {
-	t.cursor += uint32(t.size())
+	t.cursor += uint32(t.RecordSize())
 }
 
 func (t tIPTCAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
@@ -209,7 +181,7 @@ func (t tIPTCAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
 
 	// Valid header == 0x38 0x42 0x49 0x4d 0x04
 	for iptcHeader.HasValidHeader() {
-		fmt.Printf("IPTC Header, name:%s, size:%v\n", iptcHeader.Name(), iptcHeader.RecordSize())
+		// fmt.Printf("IPTC Header, name:%s, size:%v\n", iptcHeader.Name(), iptcHeader.RecordSize())
 
 		// @NOTE: There seem to be a lot of different IPTC record types, the only one
 		// that contains records is the 0x04 one (0x38 0x42 0x49 0x4d 0x04 0x04).

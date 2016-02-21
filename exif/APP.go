@@ -78,7 +78,7 @@ func fAPPReadAPP1(marker uint16, reader *JpegReader) (a APP, err error) {
 	app := &tAPP{offset: reader.pos(), endian: binary.BigEndian}
 	app.block, err = fAPPReadBlock(marker, reader, 0)
 	if app.HasID(idEXIF) {
-		exif := &tEXIFAPP{block: app.block, offset: app.offset}
+		exif := &tEXIFAPP{block: app.block, offset: app.offset, endian: binary.BigEndian}
 		return exif, err
 	} else if app.HasID(idXMP) {
 		return app, nil

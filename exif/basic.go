@@ -21,6 +21,10 @@ func GetBasicInfo(img Image) (info BasicInfo) {
 	} else {
 		fmt.Println(err.Error())
 	}
+	keyword, err := img.ReadTagValue("IPTC", IptcTagApplication2Keywords)
+	if err == nil {
+		info.Keywords = []string{keyword.(string)}
+	}
 	//height, err := img.ReadTagValue("IPTC", IptcTagApplication2Keywords)
 	//if err == nil {
 	//	info.Height = height.(float64)
