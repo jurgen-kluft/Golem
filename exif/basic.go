@@ -6,7 +6,7 @@ import (
 
 // BasicInfo contains the most basic information that could be asked for
 type BasicInfo struct {
-	Width    uint32
+	Width    interface{}
 	Height   uint32
 	Title    string
 	Descr    string
@@ -17,7 +17,7 @@ type BasicInfo struct {
 func GetBasicInfo(img Image) (info BasicInfo) {
 	width, err := img.ReadTagValue("SOF0", SOF0ImageWidth)
 	if err == nil {
-		info.Width = width.(uint32)
+		info.Width = width
 	} else {
 		fmt.Println(err.Error())
 	}
@@ -30,6 +30,10 @@ func GetBasicInfo(img Image) (info BasicInfo) {
 	keyword, err := img.ReadTagValue("IPTC", IptcTagApplication2Keywords)
 	if err == nil {
 		info.Keywords = []string{keyword.(string)}
+	}
+	datetime, err := img.ReadTagValue("EXIF", ExifTagDateTimeOriginal)
+	if err == nil {
+		fmt.Printf("datetime:%v\n", datetime)
 	}
 	//height, err := img.ReadTagValue("IPTC", IptcTagApplication2Keywords)
 	//if err == nil {

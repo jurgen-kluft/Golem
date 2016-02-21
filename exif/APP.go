@@ -200,12 +200,7 @@ type tAPP struct {
 }
 
 func (t tAPP) Name() string {
-	marker := t.Marker()
-	seg, ok := aSegments[marker]
-	if !ok {
-		return fmt.Sprintf("0x%X", t.Marker())
-	}
-	return seg.name
+	return fmt.Sprintf("0x%X", t.Marker())
 }
 func (t tAPP) Marker() uint16 {
 	if t.block == nil || len(t.block) < 2 {

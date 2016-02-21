@@ -2,6 +2,7 @@ package ImgMeta
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 )
 
@@ -114,7 +115,7 @@ type ifdOffsetItem struct {
 }
 
 func (t tEXIFAPP) ReadValue(tagID2Find uint16) (interface{}, error) {
-	//fmt.Printf("Read value of tag:0x%X in APP:EXIF\n", tagID2Find)
+	fmt.Printf("Read value of tag:0x%X in APP:EXIF\n", tagID2Find)
 
 	tiffOffset := uint32(10)
 	ifd0Offset := tiffOffset + t.TIFFOffsetToIFD0()
@@ -199,6 +200,9 @@ func (tag tExifTag) TagID() uint16 {
 	return tag.endian.Uint16(tag.appblock[tag.offset:])
 }
 func (tag tExifTag) TypeID() uint16 {
+	if tag.countOrComponents() > 1 {
+		return uint16(cARRAY) | tag.endian.Uint16(tag.appblock[tag.offset+2:])
+	}
 	return tag.endian.Uint16(tag.appblock[tag.offset+2:])
 }
 func (tag tExifTag) countOrComponents() uint32 {
@@ -206,6 +210,15 @@ func (tag tExifTag) countOrComponents() uint32 {
 }
 func (tag tExifTag) valueOrOffset() uint32 {
 	return tag.endian.Uint32(tag.appblock[tag.offset+8:])
+}
+func (tag tExifTag) valueAsU8() uint8 {
+	return tag.appblock[tag.offset+8+3]
+}
+func (tag tExifTag) valueAsU16() uint16 {
+	return binary.LittleEndian.Uint16(tag.appblock[tag.offset+8+2:])
+}
+func (tag tExifTag) valueAsU32() uint32 {
+	return binary.LittleEndian.Uint32(tag.appblock[tag.offset+8:])
 }
 func (tag tExifTag) valueAsFloat32() float32 {
 	bits := binary.LittleEndian.Uint32(tag.appblock[tag.offset+8:])
@@ -222,22 +235,67 @@ func getExifTagFieldSize(fieldType tExifTagFieldType) int {
 }
 
 const (
-	cUBYTE     = 1
-	cASCII     = 2
-	cUSHORT    = 3
-	cULONG     = 4
-	cURATIONAL = 5
-	cSBYTE     = 6
-	cUNDEFINED = 7
-	cSSHORT    = 8
-	cSLONG     = 9
-	cSRATIONAL = 10
-	cFLOAT32   = 11
-	cFLOAT64   = 12
+	cARRAY     = 0x0100
+	cUBYTE     = 0x0001
+	cASCII     = 0x0002
+	cUSHORT    = 0x0003
+	cULONG     = 0x0004
+	cURATIONAL = 0x0005
+	cSBYTE     = 0x0006
+	cUNDEFINED = 0x0007
+	cSSHORT    = 0x0008
+	cSLONG     = 0x0009
+	cSRATIONAL = 0x000A
+	cFLOAT32   = 0x000B
+	cFLOAT64   = 0x000C
 )
 
-func (ifd tExifIFD) readValueFromOffset(offset uint32, typeID uint16) (interface{}, error) {
+func (ifd tExifIFD) readValueFromOffset(offset uint32, typeID uint16, count uint32) (interface{}, error) {
 	switch typeID {
+	case cARRAY | cUBYTE:
+		offset = ifd.offset + offset
+		array := append([]uint8{}, ifd.appblock[offset:offset+count]...)
+		return array, nil
+	case cARRAY | cUSHORT:
+		offset = ifd.offset + offset
+		block := ifd.appblock[offset : offset+count*2]
+		array := make([]uint16, count, count)
+		for i := uint32(0); i < count; i++ {
+			array[i] = ifd.endian.Uint16(block[i*2:])
+		}
+		return array, nil
+	case cARRAY | cULONG:
+		offset = ifd.offset + offset
+		block := ifd.appblock[offset : offset+count*4]
+		array := make([]uint32, count, count)
+		for i := uint32(0); i < count; i++ {
+			array[i] = ifd.endian.Uint32(block[i*4:])
+		}
+		return array, nil
+	case cARRAY | cSBYTE:
+		offset = ifd.offset + offset
+		block := ifd.appblock[offset : offset+count]
+		array := make([]int8, count, count)
+		for i := uint32(0); i < count; i++ {
+			array[i] = int8(block[i])
+		}
+		return array, nil
+	case cARRAY | cSSHORT:
+		offset = ifd.offset + offset
+		block := ifd.appblock[offset : offset+count*2]
+		array := make([]int16, count, count)
+		for i := uint32(0); i < count; i++ {
+			array[i] = int16(ifd.endian.Uint16(block[i*2:]))
+		}
+		return array, nil
+	case cARRAY | cSLONG:
+		offset = ifd.offset + offset
+		block := ifd.appblock[offset : offset+count*4]
+		array := make([]int32, count, count)
+		for i := uint32(0); i < count; i++ {
+			array[i] = int32(ifd.endian.Uint32(block[i*4:]))
+		}
+		return array, nil
 	case cFLOAT64:
 		bits := ifd.endian.Uint64(ifd.appblock[ifd.offset+offset:])
 		float := math.Float64frombits(bits)
@@ -255,6 +313,7 @@ func (ifd tExifIFD) readValueFromOffset(offset uint32, typeID uint16) (interface
 }
 
 func (ifd tExifIFD) ReadValue(tag tExifTag) (interface{}, error) {
+
 	switch tag.TypeID() {
 	case cUBYTE:
 		return uint8(tag.valueOrOffset()), nil
@@ -271,11 +330,23 @@ func (ifd tExifIFD) ReadValue(tag tExifTag) (interface{}, error) {
 	case cFLOAT32:
 		return tag.valueAsFloat32(), nil
 	case cFLOAT64:
-		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID())
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
 	case cURATIONAL:
-		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID())
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
 	case cSRATIONAL:
-		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID())
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
+	case cARRAY | cUBYTE:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
+	case cARRAY | cUSHORT:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
+	case cARRAY | cULONG:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
+	case cARRAY | cSBYTE:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
+	case cARRAY | cSSHORT:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
+	case cARRAY | cSLONG:
+		return ifd.readValueFromOffset(tag.valueOrOffset(), tag.TypeID(), tag.countOrComponents())
 	}
 	return int(0), &exifError{"Reading EXIF tag value failed"}
 }
